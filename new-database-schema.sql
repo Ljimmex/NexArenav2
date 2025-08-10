@@ -368,9 +368,9 @@ CREATE TABLE "matches" (
     "winner_id" UUID REFERENCES "teams"("id") ON DELETE SET NULL,
     
     -- Daty i czasy
-    "scheduled_at" TIMESTAMP WITH TIME ZONE,
-    "started_at" TIMESTAMP WITH TIME ZONE,
-    "finished_at" TIMESTAMP WITH TIME ZONE,
+    "scheduled_at" TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '1 hour'),
+    "started_at" TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '1 hour'),
+    "finished_at" TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '2 hours'),
     
     -- Format meczu
     "best_of" INTEGER NOT NULL DEFAULT 3,
@@ -398,7 +398,9 @@ CREATE TABLE "matches" (
     CONSTRAINT "matches_different_teams" CHECK (team1_id != team2_id),
     CONSTRAINT "matches_winner_is_participant" CHECK (
         winner_id IS NULL OR winner_id = team1_id OR winner_id = team2_id
-    )
+    ),
+    CONSTRAINT "matches_match_number_positive" CHECK (match_number IS NULL OR match_number > 0),
+    CONSTRAINT "matches_group_number_positive" CHECK (group_number IS NULL OR group_number > 0)
 );
 
 -- Tabela szczegółowych wyników meczów
@@ -602,6 +604,11 @@ CREATE INDEX "idx_matches_team1_id" ON "matches"("team1_id");
 CREATE INDEX "idx_matches_team2_id" ON "matches"("team2_id");
 CREATE INDEX "idx_matches_status" ON "matches"("status");
 CREATE INDEX "idx_matches_scheduled_at" ON "matches"("scheduled_at");
+CREATE INDEX "idx_matches_tournament_stage_match_number" ON "matches"("tournament_id", "stage", "match_number");
+CREATE INDEX "idx_matches_tournament_group_number" ON "matches"("tournament_id", "group_number") WHERE "group_number" IS NOT NULL;
+CREATE INDEX "idx_matches_stage_group_match_number" ON "matches"("stage", "group_number", "match_number") WHERE "stage" = 'GROUP' AND "group_number" IS NOT NULL;
+CREATE UNIQUE INDEX "idx_matches_unique_match_number_tournament_stage" ON "matches"("tournament_id", "stage", "match_number") WHERE "stage" != 'GROUP' AND "match_number" IS NOT NULL;
+CREATE UNIQUE INDEX "idx_matches_unique_match_number_tournament_group" ON "matches"("tournament_id", "group_number", "match_number") WHERE "stage" = 'GROUP' AND "group_number" IS NOT NULL AND "match_number" IS NOT NULL;
 
 -- Indeksy dla tabeli match_vetos
 CREATE INDEX "idx_match_vetos_match_id" ON "match_vetos"("match_id");
@@ -1097,6 +1104,14 @@ CREATE POLICY "Tournament organizers can manage player map scores" ON "player_ma
             WHERE t.organizer_id IN (SELECT id FROM users WHERE supabase_user_id = auth.uid())
         )
     );
+
+-- =====================================================
+-- 12.1. KOMENTARZE DO KOLUMN
+-- =====================================================
+
+-- Komentarze dla pól match_number i group_number
+COMMENT ON COLUMN "matches"."match_number" IS 'Sequential match number within tournament/stage/group';
+COMMENT ON COLUMN "matches"."group_number" IS 'Group number for group stage matches';
 
 -- =====================================================
 -- 13. DANE TESTOWE

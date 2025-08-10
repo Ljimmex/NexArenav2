@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Get, UseGuards, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { BracketsService } from './brackets.service';
 import { GenerateBracketDto, SingleEliminationBracketDto, BracketMatchDto } from './dto/bracket.dto';
@@ -57,10 +57,22 @@ export class BracketsController {
   @Get('single-elimination/:tournamentId/matches')
   @UseGuards(AuthGuard, RoleGuard)
   @Roles(UserRole.ADMIN, UserRole.ORGANIZER)
-  @ApiOperation({ summary: 'Get a flat list of all matches for Single Elimination bracket' })
-  @ApiResponse({ status: 200, description: 'List of matches', type: Array as any })
-  async listMatches(@Param('tournamentId') tournamentId: string): Promise<BracketMatchDto[]> {
-    return this.bracketsService.listSingleEliminationMatches(tournamentId);
+  @ApiOperation({ summary: 'List all matches in Single Elimination bracket' })
+  @ApiResponse({ status: 200, description: 'List of matches', type: [BracketMatchDto] })
+  async listMatches(
+    @Param('tournamentId') tournamentId: string,
+    @Query('groupId') groupId?: string
+  ): Promise<BracketMatchDto[]> {
+    return this.bracketsService.listSingleEliminationMatches(tournamentId, groupId);
+  }
+
+  @Get('single-elimination/:tournamentId/groups')
+  @UseGuards(AuthGuard, RoleGuard)
+  @Roles(UserRole.ADMIN, UserRole.ORGANIZER)
+  @ApiOperation({ summary: 'Get list of groups in tournament' })
+  @ApiResponse({ status: 200, description: 'List of groups' })
+  async getGroups(@Param('tournamentId') tournamentId: string) {
+    return this.bracketsService.getGroups(tournamentId);
   }
 
   @Get('single-elimination/:tournamentId/matches/:matchId')

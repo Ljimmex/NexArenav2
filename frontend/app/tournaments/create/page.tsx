@@ -192,7 +192,7 @@ export default function CreateTournamentPage() {
         try {
           await bracketsAPI.generateSingleElimination({
             tournament_id: tournament.id,
-            max_participants: tournament.max_teams || 16,
+            max_participants: formData.max_teams || 16,
             bronze_match: bronze,
             number_of_groups: numberOfGroups,
           })

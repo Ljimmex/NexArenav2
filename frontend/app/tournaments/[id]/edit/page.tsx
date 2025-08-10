@@ -428,7 +428,7 @@ export default function EditTournamentPage() {
 
       await bracketsAPI.generateSingleElimination({
         tournament_id: tournament.id,
-        max_participants: tournament.max_teams,
+        max_participants: formData.max_teams || tournament.max_teams,
         bronze_match: bronzeMatch,
         number_of_groups: numberOfGroups,
       })

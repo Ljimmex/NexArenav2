@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { SingleEliminationGenerator } from './single-elimination.generator';
-import { GenerateBracketDto, SingleEliminationBracketDto, UpdateBracketMatchRequestDto, BracketMatchDto, BracketRoundDto, ParticipantDto, ParticipantType, MatchStatus, BracketType } from './dto/bracket.dto';
+import { SingleEliminationGroupsGenerator } from './single-elimination-groups.generator';
+import { GenerateBracketDto, SingleEliminationBracketDto, UpdateBracketMatchRequestDto, BracketMatchDto, BracketRoundDto, ParticipantDto, ParticipantType, MatchStatus, BracketType, GroupBracketDto } from './dto/bracket.dto';
 import { TournamentsService } from '../tournaments/tournaments.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateMatchDto } from '../matches/dto/create-match.dto';
@@ -10,6 +11,7 @@ import { MatchStage } from '../matches/dto/match.dto';
 @Injectable()
 export class BracketsService {
   private readonly seGen = new SingleEliminationGenerator();
+  private readonly seGroupsGen = new SingleEliminationGroupsGenerator();
   constructor(
     private readonly tournamentsService: TournamentsService,
     private readonly supabaseService: SupabaseService,
@@ -24,15 +26,33 @@ export class BracketsService {
     const tournament = await this.tournamentsService.findOne(dto.tournament_id);
     if (!tournament) throw new NotFoundException('Tournament not found');
 
-    const bracket = this.seGen.generate({
-      tournament_id: dto.tournament_id,
-      max_participants: dto.max_participants,
-      bronze_match: dto.bronze_match ?? false,
-      participants: dto.participants,
-    });
+    let bracket: SingleEliminationBracketDto;
 
-    if (dto.number_of_groups) {
-      (bracket as any).number_of_groups = dto.number_of_groups;
+    // Check if this is a group-based tournament
+    if (dto.number_of_groups && dto.number_of_groups > 1) {
+      // Generate groups bracket
+      const groupsBracket = this.seGroupsGen.generate({
+        tournament_id: dto.tournament_id,
+        max_participants_per_group: dto.max_participants,
+        number_of_groups: dto.number_of_groups,
+        bronze_match: dto.bronze_match ?? false,
+        participants: dto.participants,
+      });
+
+      // Convert groups bracket to SingleEliminationBracketDto format
+      bracket = this.convertGroupsBracketToSingleElimination(groupsBracket);
+    } else {
+      // Generate regular single elimination bracket
+      bracket = this.seGen.generate({
+        tournament_id: dto.tournament_id,
+        max_participants: dto.max_participants,
+        bronze_match: dto.bronze_match ?? false,
+        participants: dto.participants,
+      });
+
+      if (dto.number_of_groups) {
+        (bracket as any).number_of_groups = dto.number_of_groups;
+      }
     }
 
     // Persist into tournaments.bracket_data
@@ -49,6 +69,45 @@ export class BracketsService {
   }
 
   /**
+   * Converts a groups bracket to SingleEliminationBracketDto format
+   */
+  private convertGroupsBracketToSingleElimination(groupsBracket: any): SingleEliminationBracketDto {
+    // Create groups data for the bracket
+    const groups: GroupBracketDto[] = groupsBracket.groups.map((group: any) => ({
+      group_id: group.group_id,
+      group_name: group.group_name,
+      rounds: group.bracket.rounds,
+      total_rounds: group.bracket.total_rounds,
+      bronze_match: group.bracket.bronze_match
+    }));
+
+    // For compatibility, we'll use the first group's rounds as the main rounds
+    // but include all groups in the groups property
+    const firstGroup = groupsBracket.groups[0];
+    
+    const bracket: SingleEliminationBracketDto = {
+      tournament_id: groupsBracket.tournament_id,
+      type: groupsBracket.type,
+      total_participants: groupsBracket.total_participants,
+      total_rounds: firstGroup?.bracket.total_rounds || 0,
+      rounds: firstGroup?.bracket.rounds || [],
+      bronze_match: groupsBracket.bronze_match,
+      number_of_groups: groupsBracket.number_of_groups,
+      max_participants_per_group: groupsBracket.max_participants_per_group,
+      groups: groups,
+      metadata: {
+        created_at: groupsBracket.metadata.created_at,
+        updated_at: groupsBracket.metadata.updated_at,
+        is_finalized: groupsBracket.metadata.is_finalized,
+        advancement_rules: groupsBracket.metadata.advancement_rules,
+        placements: groupsBracket.metadata.placements || []
+      }
+    };
+
+    return bracket;
+  }
+
+  /**
    * Synchronizes bracket matches with the matches table
    */
   async syncBracketToMatches(bracket: SingleEliminationBracketDto): Promise<void> {
@@ -58,67 +117,158 @@ export class BracketsService {
         .from('matches')
         .delete()
         .eq('tournament_id', bracket.tournament_id)
-        .in('stage', [MatchStage.PLAYOFF, MatchStage.FINAL, MatchStage.THIRD_PLACE]);
+        .in('stage', [MatchStage.GROUP, MatchStage.PLAYOFF, MatchStage.FINAL, MatchStage.THIRD_PLACE]);
 
       if (deleteError) {
         console.error('Error deleting existing matches:', deleteError);
         // Continue anyway, as this might be the first time creating matches
       }
 
-      // Determine which match is the grand final (to set stage = FINAL)
-      let finalMatchId: string | undefined;
-      const lastRound = bracket.rounds[bracket.rounds.length - 1];
-      if (lastRound?.is_bronze_round && bracket.rounds.length >= 2) {
-        const prev = bracket.rounds[bracket.rounds.length - 2];
-        const fm = prev?.matches?.[prev.matches.length - 1];
-        finalMatchId = fm?.id;
-      } else if (lastRound) {
-        const fm = lastRound.matches[lastRound.matches.length - 1];
-        finalMatchId = fm?.id;
-      }
-
-      // Create matches from bracket data
       const matchesToCreate: CreateMatchDto[] = [];
 
-      for (const round of bracket.rounds) {
-        for (const bracketMatch of round.matches) {
-          // Only create matches for real participants (not placeholders)
-          const team1_id = bracketMatch.participant1?.type === ParticipantType.TEAM 
-            ? bracketMatch.participant1.id 
-            : undefined;
-          const team2_id = bracketMatch.participant2?.type === ParticipantType.TEAM 
-            ? bracketMatch.participant2.id 
-            : undefined;
+      // Handle groups if they exist
+      if (bracket.groups && bracket.groups.length > 0) {
+        // Process each group separately
+        for (let groupIndex = 0; groupIndex < bracket.groups.length; groupIndex++) {
+          const group = bracket.groups[groupIndex];
+          // If there's only one group, use group_number = 1 for all matches
+          // Otherwise use sequential numbering starting from 1
+          const groupNumber = bracket.groups.length === 1 ? 1 : groupIndex + 1;
 
-          // Decide correct stage
-          const stage = bracketMatch.id === finalMatchId
-            ? MatchStage.FINAL
-            : (round.is_bronze_round ? MatchStage.THIRD_PLACE : MatchStage.PLAYOFF);
+          // Create matches for this group
+          for (let roundIndex = 0; roundIndex < group.rounds.length; roundIndex++) {
+            const round = group.rounds[roundIndex];
+            
+            for (let matchIndex = 0; matchIndex < round.matches.length; matchIndex++) {
+              const bracketMatch = round.matches[matchIndex];
+              
+              // Only create matches for real participants (not placeholders)
+              const team1_id = bracketMatch.participant1?.type === ParticipantType.TEAM 
+                ? bracketMatch.participant1.id 
+                : undefined;
+              const team2_id = bracketMatch.participant2?.type === ParticipantType.TEAM 
+                ? bracketMatch.participant2.id 
+                : undefined;
 
-          const matchDto: CreateMatchDto = {
-             tournament_id: bracket.tournament_id,
-             round: bracketMatch.round,
-             stage,
-             team1_id,
-             team2_id,
-             scheduled_at: bracketMatch.scheduled_at,
-             best_of: 1, // Default to best of 1
-             notes: bracketMatch.is_bronze_match ? 'Bronze Medal Match' : undefined,
-           };
+              // Generate detailed notes for group matches
+              const matchNumber = matchIndex + 1;
+              let notes: string;
+              
+              if (bracketMatch.is_bronze_match) {
+                notes = `Group ${group.group_name} - Bronze Medal Match`;
+              } else {
+                notes = `Group ${group.group_name} Round ${bracketMatch.round} Match ${matchNumber}`;
+              }
 
-          matchesToCreate.push(matchDto);
+              // For group stage matches, use GROUP stage
+              const matchDto: CreateMatchDto = {
+                 tournament_id: bracket.tournament_id,
+                 round: bracketMatch.round,
+                 stage: MatchStage.GROUP,
+                 team1_id,
+                 team2_id,
+                 scheduled_at: bracketMatch.scheduled_at,
+                 best_of: 1, // Default to best of 1
+                 group_number: groupNumber,
+                 notes,
+               };
+
+              matchesToCreate.push(matchDto);
+            }
+          }
+        }
+      } else {
+        // Handle regular single elimination bracket
+        // Determine which match is the grand final (to set stage = FINAL)
+        let finalMatchId: string | undefined;
+        const lastRound = bracket.rounds[bracket.rounds.length - 1];
+        if (lastRound?.is_bronze_round && bracket.rounds.length >= 2) {
+          const prev = bracket.rounds[bracket.rounds.length - 2];
+          const fm = prev?.matches?.[prev.matches.length - 1];
+          finalMatchId = fm?.id;
+        } else if (lastRound) {
+          const fm = lastRound.matches[lastRound.matches.length - 1];
+          finalMatchId = fm?.id;
+        }
+
+        // Create matches from bracket data
+        for (let roundIndex = 0; roundIndex < bracket.rounds.length; roundIndex++) {
+          const round = bracket.rounds[roundIndex];
+          
+          for (let matchIndex = 0; matchIndex < round.matches.length; matchIndex++) {
+            const bracketMatch = round.matches[matchIndex];
+            
+            // Only create matches for real participants (not placeholders)
+            const team1_id = bracketMatch.participant1?.type === ParticipantType.TEAM 
+              ? bracketMatch.participant1.id 
+              : undefined;
+            const team2_id = bracketMatch.participant2?.type === ParticipantType.TEAM 
+              ? bracketMatch.participant2.id 
+              : undefined;
+
+            // Decide correct stage
+            const stage = bracketMatch.id === finalMatchId
+              ? MatchStage.FINAL
+              : (round.is_bronze_round ? MatchStage.THIRD_PLACE : MatchStage.PLAYOFF);
+
+            // Generate appropriate notes based on stage and match type
+            let notes: string | undefined;
+            const matchNumber = matchIndex + 1;
+            
+            if (bracketMatch.is_bronze_match) {
+              notes = 'Bronze Medal Match';
+            } else if (stage === MatchStage.FINAL) {
+              notes = 'Grand Final';
+            } else if (stage === MatchStage.THIRD_PLACE) {
+              notes = 'Third Place Match';
+            } else {
+              // For playoff matches, generate descriptive round names
+              const totalRounds = bracket.rounds.filter(r => !r.is_bronze_round).length;
+              const roundFromEnd = totalRounds - roundIndex;
+              
+              let roundName: string;
+              if (roundFromEnd === 1) {
+                roundName = 'Final';
+              } else if (roundFromEnd === 2) {
+                roundName = 'Semifinal';
+              } else if (roundFromEnd === 3) {
+                roundName = 'Quarterfinal';
+              } else if (roundFromEnd === 4) {
+                roundName = 'Round of 16';
+              } else if (roundFromEnd === 5) {
+                roundName = 'Round of 32';
+              } else {
+                roundName = `Round ${bracketMatch.round}`;
+              }
+              
+              notes = `${roundName} Match ${matchNumber}`;
+            }
+
+            const matchDto: CreateMatchDto = {
+               tournament_id: bracket.tournament_id,
+               round: bracketMatch.round,
+               stage,
+               team1_id,
+               team2_id,
+               scheduled_at: bracketMatch.scheduled_at,
+               best_of: 1, // Default to best of 1
+               notes,
+             };
+
+            matchesToCreate.push(matchDto);
+          }
         }
       }
 
-      // Bulk insert matches
+      // Create matches using MatchesService to ensure proper match_number and group_number generation
       if (matchesToCreate.length > 0) {
-        const { error: insertError } = await this.supabaseService.client
-          .from('matches')
-          .insert(matchesToCreate);
-
-        if (insertError) {
-          console.error('Error creating matches:', insertError);
-          throw new BadRequestException(`Failed to create matches: ${insertError.message}`);
+        for (const matchDto of matchesToCreate) {
+          try {
+            await this.matchesService.create(matchDto);
+          } catch (error) {
+            console.error('Error creating match:', error);
+            // Continue with other matches even if one fails
+          }
         }
       }
     } catch (error) {
@@ -147,7 +297,16 @@ export class BracketsService {
      await this.syncBracketToMatches(bracket);
      
      // Count matches that were created
-     const matchesCount = bracket.rounds.reduce((total, round) => total + round.matches.length, 0);
+     let matchesCount = 0;
+     if (bracket.groups && bracket.groups.length > 0) {
+       // Count matches in all groups
+       for (const group of bracket.groups) {
+         matchesCount += group.rounds.reduce((total, round) => total + round.matches.length, 0);
+       }
+     } else {
+       // Count matches in regular bracket
+       matchesCount = bracket.rounds.reduce((total, round) => total + round.matches.length, 0);
+     }
      
      return {
        message: 'Bracket matches synchronized successfully',
@@ -155,7 +314,7 @@ export class BracketsService {
      };
    }
 
-   async listSingleEliminationMatches(tournament_id: string): Promise<BracketMatchDto[]> {
+   async listSingleEliminationMatches(tournament_id: string, groupId?: string): Promise<BracketMatchDto[]> {
     const { data, error } = await this.supabaseService.client
       .from('tournaments')
       .select('id, bracket_data')
@@ -167,10 +326,56 @@ export class BracketsService {
     if (!bracket || bracket.type !== BracketType.SINGLE_ELIMINATION) throw new BadRequestException('Invalid or missing Single Elimination bracket');
 
     const flat: BracketMatchDto[] = [];
-    for (const r of bracket.rounds) {
-      for (const m of r.matches) flat.push(m);
+    
+    // Handle groups if they exist
+    if (bracket.groups && bracket.groups.length > 0) {
+      if (groupId) {
+        // Return matches for specific group
+        const group = bracket.groups.find(g => g.group_id === groupId);
+        if (!group) throw new NotFoundException(`Group ${groupId} not found`);
+        
+        for (const r of group.rounds) {
+          for (const m of r.matches) flat.push(m);
+        }
+      } else {
+        // Return matches for all groups
+        for (const group of bracket.groups) {
+          for (const r of group.rounds) {
+            for (const m of r.matches) flat.push(m);
+          }
+        }
+      }
+    } else {
+      // Handle regular single elimination bracket
+      for (const r of bracket.rounds) {
+        for (const m of r.matches) flat.push(m);
+      }
     }
+    
     return flat;
+  }
+
+  async getGroups(tournament_id: string) {
+    const { data, error } = await this.supabaseService.client
+      .from('tournaments')
+      .select('id, bracket_data')
+      .eq('id', tournament_id)
+      .single();
+
+    if (error || !data) throw new NotFoundException('Tournament not found');
+    const bracket: SingleEliminationBracketDto = data.bracket_data as SingleEliminationBracketDto;
+    if (!bracket || bracket.type !== BracketType.SINGLE_ELIMINATION) throw new BadRequestException('Invalid or missing Single Elimination bracket');
+
+    if (!bracket.groups || bracket.groups.length === 0) {
+      return [];
+    }
+
+    return bracket.groups.map(group => ({
+      group_id: group.group_id,
+      group_name: group.group_name,
+      total_rounds: group.total_rounds,
+      bronze_match: group.bronze_match
+    }));
   }
 
   async getSingleEliminationBracket(tournament_id: string): Promise<SingleEliminationBracketDto> {

@@ -26,7 +26,7 @@ export class CreateMatchDto {
   @IsUUID()
   team2_id?: string
 
-  @ApiPropertyOptional({ description: 'Scheduled start time (ISO date)' })
+  @ApiPropertyOptional({ description: 'Scheduled start time (ISO date)', default: 'NOW() + 1 hour' })
   @IsOptional()
   @IsDateString()
   scheduled_at?: string
@@ -46,4 +46,16 @@ export class CreateMatchDto {
   @IsOptional()
   @IsString()
   notes?: string
+
+  @ApiPropertyOptional({ description: 'Match number within tournament/group (auto-generated if not provided)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  match_number?: number
+
+  @ApiPropertyOptional({ description: 'Group number for group stage matches (auto-generated if not provided)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  group_number?: number
 }

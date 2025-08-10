@@ -203,4 +203,30 @@ export class MatchesController {
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<{ id: string }> {
     return this.matchesService.remove(id)
   }
+
+  @Post(':id/start')
+  @UseGuards(AuthGuard, RoleGuard)
+  @Roles(UserRole.ADMIN, UserRole.ORGANIZER)
+  @ApiOperation({ summary: 'Start a match (sets status to LIVE and started_at timestamp)' })
+  @ApiParam({ name: 'id', description: 'Match UUID' })
+  @ApiResponse({ status: 200, description: 'Match started', type: MatchDto })
+  @HttpCode(HttpStatus.OK)
+  startMatch(@Param('id', ParseUUIDPipe) id: string): Promise<MatchDto> {
+    return this.matchesService.startMatch(id)
+  }
+
+  @Post(':id/finish')
+  @UseGuards(AuthGuard, RoleGuard)
+  @Roles(UserRole.ADMIN, UserRole.ORGANIZER)
+  @ApiOperation({ summary: 'Finish a match (sets status to FINISHED and finished_at timestamp)' })
+  @ApiParam({ name: 'id', description: 'Match UUID' })
+  @ApiQuery({ name: 'winnerId', required: false, type: String, description: 'Winner team UUID (optional)' })
+  @ApiResponse({ status: 200, description: 'Match finished', type: MatchDto })
+  @HttpCode(HttpStatus.OK)
+  finishMatch(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('winnerId') winnerId?: string
+  ): Promise<MatchDto> {
+    return this.matchesService.finishMatch(id, winnerId)
+  }
 }

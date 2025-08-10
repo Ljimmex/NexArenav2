@@ -29,9 +29,22 @@ export class MatchesService {
   constructor(private readonly supabase: SupabaseService) {}
 
   async create(dto: CreateMatchDto): Promise<MatchDto> {
+    // Prepare match data with auto-generated numbers if not provided
+    const matchData = { ...dto }
+    
+    // Auto-generate match_number if not provided
+    if (!matchData.match_number) {
+      matchData.match_number = await this.generateMatchNumber(dto.tournament_id, dto.stage, dto.group_number)
+    }
+    
+    // Auto-generate group_number if not provided and stage is GROUP
+    if (!matchData.group_number && dto.stage === MatchStage.GROUP) {
+      matchData.group_number = await this.generateGroupNumber(dto.tournament_id)
+    }
+
     const { data, error } = await this.supabase.client
       .from('matches')
-      .insert({ ...dto })
+      .insert(matchData)
       .select()
       .single()
 
@@ -186,9 +199,27 @@ export class MatchesService {
   }
 
   async update(id: string, dto: UpdateMatchDto): Promise<MatchDto> {
+    // Prepare update data
+    const updateData: any = { ...dto, updated_at: new Date().toISOString() }
+    
+    // Auto-set timestamps based on status changes
+    if (dto.status) {
+      const now = new Date().toISOString()
+      
+      // Set started_at when match goes LIVE (if not already set)
+      if (dto.status === MatchStatus.LIVE && !dto.started_at) {
+        updateData.started_at = now
+      }
+      
+      // Set finished_at when match is FINISHED (if not already set)
+      if (dto.status === MatchStatus.FINISHED && !dto.finished_at) {
+        updateData.finished_at = now
+      }
+    }
+
     const { data, error } = await this.supabase.client
       .from('matches')
-      .update({ ...dto, updated_at: new Date().toISOString() })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()
@@ -201,5 +232,90 @@ export class MatchesService {
     const { error } = await this.supabase.client.from('matches').delete().eq('id', id)
     if (error) throw new BadRequestException(error.message)
     return { id }
+  }
+
+  async startMatch(id: string): Promise<MatchDto> {
+    const now = new Date().toISOString()
+    const { data, error } = await this.supabase.client
+      .from('matches')
+      .update({ 
+        status: MatchStatus.LIVE, 
+        started_at: now,
+        updated_at: now 
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw new BadRequestException(error.message)
+    return data as unknown as MatchDto
+  }
+
+  async finishMatch(id: string, winnerId?: string): Promise<MatchDto> {
+    const now = new Date().toISOString()
+    const updateData: any = { 
+      status: MatchStatus.FINISHED, 
+      finished_at: now,
+      updated_at: now 
+    }
+    
+    if (winnerId) {
+      updateData.winner_id = winnerId
+    }
+
+    const { data, error } = await this.supabase.client
+      .from('matches')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw new BadRequestException(error.message)
+    return data as unknown as MatchDto
+  }
+
+  /**
+   * Generate the next match number for a tournament/stage combination
+   * Numbers are continuous across all groups within the same stage
+   */
+  private async generateMatchNumber(tournamentId: string, stage: MatchStage, groupNumber?: number): Promise<number> {
+    let query = this.supabase.client
+      .from('matches')
+      .select('match_number')
+      .eq('tournament_id', tournamentId)
+      .eq('stage', stage)
+      .not('match_number', 'is', null)
+      .order('match_number', { ascending: false })
+      .limit(1)
+
+    // Don't filter by group_number - we want continuous numbering across all groups
+
+    const { data, error } = await query
+
+    if (error) throw new BadRequestException(`Error generating match number: ${error.message}`)
+
+    // If no matches exist, start with 1, otherwise increment the highest number
+    const highestNumber = data && data.length > 0 ? data[0].match_number : 0
+    return highestNumber + 1
+  }
+
+  /**
+   * Generate the next group number for a tournament
+   */
+  private async generateGroupNumber(tournamentId: string): Promise<number> {
+    const { data, error } = await this.supabase.client
+      .from('matches')
+      .select('group_number')
+      .eq('tournament_id', tournamentId)
+      .eq('stage', MatchStage.GROUP)
+      .not('group_number', 'is', null)
+      .order('group_number', { ascending: false })
+      .limit(1)
+
+    if (error) throw new BadRequestException(`Error generating group number: ${error.message}`)
+
+    // If no group matches exist, start with 1, otherwise increment the highest number
+    const highestNumber = data && data.length > 0 ? data[0].group_number : 0
+    return highestNumber + 1
   }
 }

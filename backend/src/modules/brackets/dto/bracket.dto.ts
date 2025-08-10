@@ -169,6 +169,31 @@ export class BracketRoundDto {
   is_bronze_round?: boolean;
 }
 
+export class GroupBracketDto {
+  @ApiProperty({ description: 'Group ID' })
+  @IsString()
+  group_id: string;
+
+  @ApiProperty({ description: 'Group name (A, B, C, etc.)' })
+  @IsString()
+  group_name: string;
+
+  @ApiProperty({ type: [BracketRoundDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BracketRoundDto)
+  rounds: BracketRoundDto[];
+
+  @ApiProperty({ description: 'Number of rounds in this group' })
+  @IsNumber()
+  total_rounds: number;
+
+  @ApiPropertyOptional({ description: 'Bronze medal match enabled for this group' })
+  @IsOptional()
+  @IsBoolean()
+  bronze_match?: boolean;
+}
+
 export class SingleEliminationBracketDto {
   @ApiProperty({ description: 'Tournament ID' })
   @IsString()
@@ -202,6 +227,18 @@ export class SingleEliminationBracketDto {
   @IsNumber()
   number_of_groups?: number;
 
+  @ApiPropertyOptional({ description: 'Maximum participants per group' })
+  @IsOptional()
+  @IsNumber()
+  max_participants_per_group?: number;
+
+  @ApiPropertyOptional({ description: 'Groups data (for group-based tournaments)', type: [GroupBracketDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GroupBracketDto)
+  groups?: GroupBracketDto[];
+
   @ApiProperty({ description: 'Bracket metadata' })
   metadata: {
     created_at: string;
@@ -213,6 +250,7 @@ export class SingleEliminationBracketDto {
       participant_id: string;
       name?: string;
       place: number;
+      group_id?: string;
       dsq?: boolean;
       ex_aequo?: boolean;
     }>;

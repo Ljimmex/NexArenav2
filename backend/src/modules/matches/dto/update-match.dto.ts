@@ -15,12 +15,12 @@ export class UpdateMatchDto extends PartialType(CreateMatchDto) {
   @IsUUID()
   winner_id?: string
 
-  @ApiPropertyOptional({ description: 'Actual start time (ISO date)' })
+  @ApiPropertyOptional({ description: 'When the match actually started (default: 1 hour from creation, updated when match begins)' })
   @IsOptional()
   @IsDateString()
   started_at?: string
 
-  @ApiPropertyOptional({ description: 'Finish time (ISO date)' })
+  @ApiPropertyOptional({ description: 'When the match finished (default: 2 hours from creation, updated when match ends)' })
   @IsOptional()
   @IsDateString()
   finished_at?: string

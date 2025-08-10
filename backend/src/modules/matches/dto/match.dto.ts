@@ -40,6 +40,18 @@ export class MatchDto {
   @IsEnum(MatchStatus)
   status: MatchStatus
 
+  @ApiPropertyOptional({ description: 'Match number within tournament/group' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  match_number?: number | null
+
+  @ApiPropertyOptional({ description: 'Group number for group stage matches' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  group_number?: number | null
+
   @ApiPropertyOptional({ description: 'First team ID (UUID)' })
   @IsOptional()
   @IsUUID()
@@ -55,17 +67,23 @@ export class MatchDto {
   @IsUUID()
   winner_id?: string | null
 
-  @ApiPropertyOptional({ description: 'Scheduled start time (ISO date)' })
+  @ApiPropertyOptional({ description: 'Scheduled start time (ISO date) - defaults to 1 hour from creation' })
   @IsOptional()
   @IsDateString()
   scheduled_at?: string | null
 
-  @ApiPropertyOptional({ description: 'Actual start time (ISO date)' })
+  @ApiPropertyOptional({ 
+    description: 'When the match actually started (default: 1 hour from creation, updated when status changes to LIVE)', 
+    example: '2024-01-15T15:00:00Z' 
+  })
   @IsOptional()
   @IsDateString()
   started_at?: string | null
 
-  @ApiPropertyOptional({ description: 'Finish time (ISO date)' })
+  @ApiPropertyOptional({ 
+    description: 'When the match finished (default: 2 hours from creation, updated when status changes to FINISHED)', 
+    example: '2024-01-15T17:00:00Z' 
+  })
   @IsOptional()
   @IsDateString()
   finished_at?: string | null

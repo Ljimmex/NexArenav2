@@ -37,8 +37,9 @@ import { TournamentHeader } from '@/components/tournament-header'
 import { TournamentNavigation } from '@/components/tournament-navigation'
 import { Tournament, tournamentsAPI } from '@/lib/api/tournaments'
 import { Team, teamsAPI } from '@/lib/api/teams'
-import { bracketsAPI } from '@/lib/api/brackets'
+import { bracketsAPI, GroupInfo } from '@/lib/api/brackets'
 import { BracketDisplay } from '@/components/bracket-display'
+import { GroupSelector } from '@/components/group-selector'
 import { useAuth } from '@/lib/auth/auth-context'
 import { useAdmin } from '@/lib/hooks/useAdmin'
 import toast from 'react-hot-toast'
@@ -101,6 +102,9 @@ export default function TournamentDetailPage() {
   const [bracketData, setBracketData] = useState<any>(null)
   const [loadingBracket, setLoadingBracket] = useState(false)
   const [syncingBracket, setSyncingBracket] = useState(false)
+  const [groups, setGroups] = useState<GroupInfo[]>([])
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [loadingGroups, setLoadingGroups] = useState(false)
 
   useEffect(() => {
     const fetchTournament = async () => {
@@ -156,12 +160,31 @@ export default function TournamentDetailPage() {
   }, [tournament?.id])
 
   useEffect(() => {
+    const fetchGroups = async () => {
+      if (!tournament?.id || tournament.tournament_type !== 'SINGLE_ELIMINATION') return
+      
+      try {
+        setLoadingGroups(true)
+        const groupsData = await bracketsAPI.getGroups(tournament.id)
+        setGroups(groupsData)
+      } catch (error) {
+        console.error('Error fetching groups:', error)
+        setGroups([])
+      } finally {
+        setLoadingGroups(false)
+      }
+    }
+
+    fetchGroups()
+  }, [tournament?.id, tournament?.tournament_type])
+
+  useEffect(() => {
     const fetchBracket = async () => {
       if (!tournament?.id || tournament.tournament_type !== 'SINGLE_ELIMINATION') return
       
       try {
         setLoadingBracket(true)
-        const bracket = await bracketsAPI.getMatches(tournament.id)
+        const bracket = await bracketsAPI.getMatches(tournament.id, selectedGroup || undefined)
         setBracketData(bracket)
       } catch (error) {
         console.error('Error fetching bracket:', error)
@@ -172,7 +195,7 @@ export default function TournamentDetailPage() {
     }
 
     fetchBracket()
-  }, [tournament?.id, tournament?.tournament_type])
+  }, [tournament?.id, tournament?.tournament_type, selectedGroup])
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'TBD'
@@ -262,9 +285,13 @@ export default function TournamentDetailPage() {
       
       await bracketsAPI.syncBracketMatches(tournament.id)
       
-      // Refresh bracket data
-      const bracket = await bracketsAPI.getMatches(tournament.id)
+      // Refresh bracket data and groups
+      const [bracket, groupsData] = await Promise.all([
+        bracketsAPI.getMatches(tournament.id, selectedGroup || undefined),
+        bracketsAPI.getGroups(tournament.id)
+      ])
       setBracketData(bracket)
+      setGroups(groupsData)
       
       toast.success('Bracket został zsynchronizowany', { id: toastId })
     } catch (error) {
@@ -450,7 +477,15 @@ export default function TournamentDetailPage() {
                   
               <TabsContent value="brackets" className="mt-8">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-white font-semibold">Tournament Bracket</h3>
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-white font-semibold">Tournament Bracket</h3>
+                    <GroupSelector
+                      groups={groups}
+                      selectedGroup={selectedGroup}
+                      onGroupChange={setSelectedGroup}
+                      loading={loadingGroups}
+                    />
+                  </div>
                   {canEditTournament && (
                     <Button
                       onClick={handleSyncBracket}
@@ -464,6 +499,8 @@ export default function TournamentDetailPage() {
                 <BracketDisplay 
                   bracketData={bracketData} 
                   loading={loadingBracket}
+                  selectedGroup={selectedGroup}
+                  groups={groups}
                   onMatchClick={(match) => {
                     const participant1Name = match.participant1?.name || 'TBD';
                     const participant2Name = match.participant2?.name || 'TBD';
