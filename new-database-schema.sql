@@ -84,8 +84,9 @@ CREATE TYPE "MatchStage" AS ENUM (
 
 -- Statusy meczów
 CREATE TYPE "MatchStatus" AS ENUM (
-    'SCHEDULED',      -- Zaplanowany
+    'WAITING',        -- Oczekiwanie na drużyny
     'UNSCHEDULED',    -- Niezaplanowany
+    'SCHEDULED',      -- Zaplanowany
     'LIVE',           -- W trakcie
     'FINISHED',       -- Zakończony
     'POSTPONED',      -- Przełożony
@@ -357,7 +358,9 @@ CREATE TABLE "matches" (
     "tournament_id" UUID NOT NULL REFERENCES "tournaments"("id") ON DELETE CASCADE,
     "round" INTEGER NOT NULL,
     "stage" "MatchStage" NOT NULL DEFAULT 'PLAYOFF',
-    "status" "MatchStatus" NOT NULL DEFAULT 'SCHEDULED',
+    "status" "MatchStatus" NOT NULL DEFAULT 'WAITING',
+    "match_number" INTEGER,
+    "group_number" INTEGER,
     
     -- Drużyny
     "team1_id" UUID REFERENCES "teams"("id") ON DELETE SET NULL,
@@ -370,7 +373,7 @@ CREATE TABLE "matches" (
     "finished_at" TIMESTAMP WITH TIME ZONE,
     
     -- Format meczu
-    "best_of" INTEGER NOT NULL DEFAULT 1,
+    "best_of" INTEGER NOT NULL DEFAULT 3,
     "current_game" INTEGER NOT NULL DEFAULT 1,
     
     -- Wyniki

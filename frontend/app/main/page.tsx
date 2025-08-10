@@ -157,30 +157,40 @@ export default function MainPage() {
       <Sidebar />
       <main className="md:pl-20">
         <section className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-          {/* Hero */}
-          <div className="relative mb-8 overflow-hidden rounded-3xl border border-white/10 bg-[#0f1317]">
-            <div className="grid gap-4 p-6 sm:p-8 md:grid-cols-2 md:items-center">
-              <div className="space-y-3">
-                <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Join a tournament</h1>
-                <p className="text-white/70">
-                  Compete in high quality tournaments from the best organizers and track your progress.
-                </p>
-                <div className="pt-2">
-                  <Link href="/tournaments">
-                    <Button className="rounded-xl bg-cyan-600 px-5 hover:bg-cyan-500">Join Tournament</Button>
-                  </Link>
-                </div>
-              </div>
-              <div className="relative aspect-[3/2] w-full overflow-hidden rounded-2xl border border-white/10">
-                <Image
-                  src="/placeholder.svg?height=480&width=720"
-                  alt="Esports character"
-                  fill
-                  className="object-cover"
-                />
-              </div>
-            </div>
-          </div>
+
+{/* Hero */}
+<div className="relative mb-8 overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900">
+  <div className="absolute inset-0 bg-gradient-to-r from-cyan-900/20 via-purple-900/20 to-pink-900/20"></div>
+  <div className="relative grid gap-4 p-6 sm:p-8 md:grid-cols-2 md:items-center md:min-h-[320px]">
+    <div className="space-y-4">
+      <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl bg-gradient-to-r from-white via-cyan-100 to-white bg-clip-text text-transparent">
+        Join the Ultimate Gaming Arena
+      </h1>
+      <p className="text-lg text-gray-300 leading-relaxed">
+        Dive into epic tournaments, compete with the best players worldwide, and claim your spot among gaming legends. Your victory awaits!
+      </p>
+      <div className="pt-2">
+        <Link href="/tournaments">
+          <Button className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 px-6 py-3 text-lg font-semibold shadow-lg hover:shadow-cyan-500/25 transition-all duration-300">
+            Join Tournament
+          </Button>
+        </Link>
+      </div>
+    </div>
+    {/* Character positioned to show head */}
+    <div className="relative md:absolute md:right-6 md:top-4 md:w-auto md:h-auto">
+      <div className="relative w-full max-w-sm mx-auto md:mx-0">
+        <Image
+          src="/images/mainpageavatar.png"
+          alt="Esports character"
+          width={400}
+          height={400}
+          className="object-cover object-top w-full h-auto"
+        />
+      </div>
+    </div>
+  </div>
+</div>
 
           {/* Popular tournaments */}
           <SectionHeader title="Popular tournaments" href="/tournaments" />
