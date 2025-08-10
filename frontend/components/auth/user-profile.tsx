@@ -29,6 +29,7 @@ export function UserProfile() {
     display_name: customUser?.display_name || '',
     bio: customUser?.bio || '',
     avatar_url: customUser?.avatar_url || '/images/demo-avatar.png',
+    banner_url: customUser?.banner_url || '/banners/ProfilBaner.png',
   })
 
   // Update form data when customUser changes
@@ -39,6 +40,7 @@ export function UserProfile() {
         display_name: customUser.display_name || '',
         bio: customUser.bio || '',
         avatar_url: customUser.avatar_url || '/images/demo-avatar.png',
+        banner_url: customUser.banner_url || '/banners/ProfilBaner.png',
       })
     }
   }, [customUser])

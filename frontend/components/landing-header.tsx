@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { 
   Trophy, 
@@ -24,17 +25,17 @@ export function LandingHeader() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="relative">
-              <Trophy className="h-8 w-8 text-cyan-400" />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full animate-pulse" />
+          <Link href="/" className="flex items-center">
+            <div className="relative h-10 w-auto">
+              <Image
+                src="/logos/LogoText.png"
+                alt="NexArena Logo"
+                width={150}
+                height={40}
+                className="h-10 w-auto object-contain"
+                priority
+              />
             </div>
-            <span className="text-xl font-bold">
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                Esports
-              </span>
-              <span className="text-white ml-1">Hub</span>
-            </span>
           </Link>
 
           {/* Desktop Navigation */}

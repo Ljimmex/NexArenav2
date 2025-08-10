@@ -16,7 +16,7 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string, username: string) => Promise<void>
   signInWithProvider: (provider: 'google' | 'discord' | 'github') => Promise<void>
   signOut: () => Promise<void>
-  updateProfile: (data: { username?: string; display_name?: string; bio?: string; avatar_url?: string }) => Promise<void>
+  updateProfile: (data: { username?: string; display_name?: string; bio?: string; avatar_url?: string; banner_url?: string }) => Promise<void>
   refreshUserData: () => Promise<void>
   refreshToken: () => Promise<boolean>
 }
@@ -263,7 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const updateProfile = async (data: { username?: string; display_name?: string; bio?: string; avatar_url?: string }) => {
+  const updateProfile = async (data: { username?: string; display_name?: string; bio?: string; avatar_url?: string; banner_url?: string }) => {
     try {
       setLoading(true)
       

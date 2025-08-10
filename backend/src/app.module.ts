@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { TournamentsModule } from './modules/tournaments/tournaments.module';
 import { MatchesModule } from './modules/matches/matches.module';
+import { BracketsModule } from './modules/brackets/brackets.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 
 @Module({
@@ -22,13 +23,13 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
         limit: 100,
       },
     ]),
-    // PrismaModule, // Disabled until needed - no services use it yet
     SupabaseModule,
     AuthModule,
     UsersModule,
     TeamsModule,
     TournamentsModule,
     MatchesModule,
+    BracketsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -72,6 +72,9 @@ export class UserResponseDto {
   @ApiPropertyOptional({ description: 'Avatar URL', example: 'https://example.com/avatar.jpg' })
   avatar_url?: string;
 
+  @ApiPropertyOptional({ description: 'Banner URL', example: 'https://example.com/banner.jpg' })
+  banner_url?: string;
+
   @ApiPropertyOptional({ description: 'User bio', example: 'Professional esports player' })
   bio?: string;
 

@@ -139,4 +139,8 @@ export class CreateTournamentDto {
   @IsOptional()
   @IsString()
   discord_invite?: string;
+
+  @ApiProperty({ description: 'Tournament format-specific settings (JSONB)', required: false })
+  @IsOptional()
+  format_settings?: any;
 }

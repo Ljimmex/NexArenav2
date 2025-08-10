@@ -18,6 +18,7 @@ import {
   CheckCircle
 } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/lib/auth/auth-context'
 import { useRouter } from 'next/navigation'
 
@@ -286,8 +287,13 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="flex items-center justify-center mb-6">
-              <Trophy className="h-8 w-8 text-cyan-400 mr-3" />
-              <span className="text-2xl font-bold text-white">E-Sport Platform</span>
+              <Image
+                src="/logos/LogoText.png"
+                alt="NexArena Logo"
+                width={120}
+                height={32}
+                className="h-8 w-auto object-contain"
+              />
             </div>
             <p className="text-gray-400 mb-6">
               Największa platforma turniejów e-sportowych w Polsce

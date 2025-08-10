@@ -102,6 +102,9 @@ export interface Tournament {
   registered_teams_count: number;
   created_at: string;
   updated_at: string;
+  // Added fields returned by backend
+  format_settings?: Record<string, unknown>;
+  bracket_data?: Record<string, unknown>;
 }
 
 export interface CreateTournamentData {
@@ -127,6 +130,8 @@ export interface CreateTournamentData {
   logo_url?: string;
   stream_url?: string;
   discord_invite?: string;
+  // New optional format-specific settings (stored as JSONB)
+  format_settings?: Record<string, unknown>;
 }
 
 export interface TournamentsResponse {
@@ -160,7 +165,7 @@ class TournamentsAPI {
     
     console.log('TournamentsAPI.getTournaments: Making request to:', endpoint);
     
-    const backendTournaments = await apiClient.get<any[]>(endpoint);
+    const backendTournaments = await apiClient.get<Tournament[]>(endpoint);
     
     console.log('TournamentsAPI.getTournaments: Raw backend response:', {
       type: typeof backendTournaments,
@@ -242,8 +247,8 @@ class TournamentsAPI {
     return apiClient.delete<{ message: string }>(`/tournaments/${tournamentId}/teams/${teamId}`);
   }
 
-  async getRegisteredTeams(tournamentId: string): Promise<any[]> {
-    return apiClient.get<any[]>(`/tournaments/${tournamentId}/teams`);
+  async getRegisteredTeams(tournamentId: string): Promise<unknown[]> {
+    return apiClient.get<unknown[]>(`/tournaments/${tournamentId}/teams`);
   }
 }
 

@@ -15,6 +15,7 @@ import { CreateTournamentData, tournamentsAPI } from '@/lib/api/tournaments'
 import { useAdmin } from '@/lib/hooks/useAdmin'
 import { useAuth } from '@/lib/auth/auth-context'
 import toast from 'react-hot-toast'
+import { bracketsAPI } from '@/lib/api/brackets'
 
 const gameTypes = [
   { value: 'CS2', label: 'Counter-Strike 2' },
@@ -135,10 +136,30 @@ export default function CreateTournamentPage() {
     prize_pool: 0,
     is_public: true,
     requires_approval: false,
+    // Default Single Elimination format settings
+    format_settings: {
+      single_elimination: {
+        bronze_match: false,
+        number_of_groups: 1,
+      },
+    },
   })
 
   const handleInputChange = (field: keyof CreateTournamentData, value: string | number | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSESettingChange = (path: 'bronze_match' | 'max_participants' | 'number_of_groups', value: boolean | number) => {
+    setFormData(prev => ({
+      ...prev,
+      format_settings: {
+        ...(prev.format_settings || {}),
+        single_elimination: {
+          ...(prev.format_settings?.single_elimination || {}),
+          [path]: value,
+        },
+      },
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -163,6 +184,24 @@ export default function CreateTournamentPage() {
 
       // Create tournament via API
       const tournament = await tournamentsAPI.createTournament(formData)
+      
+      // If Single Elimination, trigger bracket generation
+      if (tournament.tournament_type === 'SINGLE_ELIMINATION') {
+        const bronze = Boolean((formData.format_settings as any)?.single_elimination?.bronze_match)
+        const numberOfGroups = Number((formData.format_settings as any)?.single_elimination?.number_of_groups) || 1
+        try {
+          await bracketsAPI.generateSingleElimination({
+            tournament_id: tournament.id,
+            max_participants: tournament.max_teams || 16,
+            bronze_match: bronze,
+            number_of_groups: numberOfGroups,
+          })
+        } catch (genErr) {
+          console.error('Bracket generation failed:', genErr)
+          // Non-fatal: inform user but allow navigation
+          toast.error('Nie udało się wygenerować drabinki. Możesz spróbować później z panelu edycji.')
+        }
+      }
       
       // Show success toast
       toast.success('Turniej został utworzony pomyślnie!', { id: 'create-tournament' })
@@ -277,13 +316,45 @@ export default function CreateTournamentPage() {
                         </SelectItem>
                       ))}
                     </SelectContent>
-                  </Select>
+                  </Select> 
                 </div>
               </div>
+
+              {formData.tournament_type === 'SINGLE_ELIMINATION' && (
+                <div className="mt-4 p-4 border border-gray-700 rounded-lg bg-[#1f1f1f]">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="space-y-1">
+                      <Label className="text-white">Mecz o 3. miejsce</Label>
+                      <p className="text-sm text-gray-400">Dodaj dodatkowy mecz dla drużyn przegranych w półfinałach</p>
+                    </div>
+                    <Switch
+                      checked={Boolean((formData.format_settings as any)?.single_elimination?.bronze_match)}
+                      onCheckedChange={(checked: boolean) => handleSESettingChange('bronze_match', checked)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="se_number_of_groups" className="text-white">Liczba grup</Label>
+                      <Input
+                        id="se_number_of_groups"
+                        type="number"
+                        min={1}
+                        max={8}
+                        step={1}
+                        value={Number((formData.format_settings as any)?.single_elimination?.number_of_groups) || 1}
+                        onChange={(e) => handleSESettingChange('number_of_groups', parseInt(e.target.value) || 1)}
+                        className="bg-[#1a1a1a] border-gray-600 text-white"
+                      />
+                      <p className="text-xs text-gray-400">Liczba grup w fazie grupowej (1 = bez grup)</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Tournament Settings */}
+          {/* Team Settings */}
           <Card className="bg-[#2a2a2a] border-gray-700">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
@@ -292,62 +363,65 @@ export default function CreateTournamentPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="min_teams" className="text-white">Min. drużyn</Label>
-                  <Input
-                    id="min_teams"
-                    type="number"
-                    min="2"
-                    max="64"
-                    value={formData.min_teams}
-                    onChange={(e) => handleInputChange('min_teams', parseInt(e.target.value))}
-                    className="bg-[#1a1a1a] border-gray-600 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max_teams" className="text-white">Max. drużyn</Label>
-                  <Input
-                    id="max_teams"
-                    type="number"
-                    min="4"
-                    max="128"
-                    value={formData.max_teams}
-                    onChange={(e) => handleInputChange('max_teams', parseInt(e.target.value))}
-                    className="bg-[#1a1a1a] border-gray-600 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="team_size" className="text-white">Rozmiar drużyny</Label>
+                  <Label htmlFor="team_size" className="text-white">Rozmiar drużyny *</Label>
                   <Input
                     id="team_size"
                     type="number"
                     min="1"
                     max="10"
                     value={formData.team_size}
-                    onChange={(e) => handleInputChange('team_size', parseInt(e.target.value))}
+                    onChange={(e) => handleInputChange('team_size', parseInt(e.target.value) || 1)}
                     className="bg-[#1a1a1a] border-gray-600 text-white"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="min_teams" className="text-white">Minimalna liczba drużyn *</Label>
+                  <Input
+                    id="min_teams"
+                    type="number"
+                    min="2"
+                    value={formData.min_teams}
+                    onChange={(e) => handleInputChange('min_teams', parseInt(e.target.value) || 2)}
+                    className="bg-[#1a1a1a] border-gray-600 text-white"
+                    required
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-white">Tryb seedowania</Label>
-                <Select
-                  value={formData.seeding_mode}
-                  onValueChange={(value: string) => handleInputChange('seeding_mode', value)}
-                >
-                  <SelectTrigger className="bg-[#1a1a1a] border-gray-600 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#2a2a2a] border-gray-600">
-                    {seedingModes.map((mode) => (
-                      <SelectItem key={mode.value} value={mode.value}>
-                        {mode.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="max_teams" className="text-white">Maksymalna liczba drużyn *</Label>
+                  <Input
+                    id="max_teams"
+                    type="number"
+                    min="2"
+                    value={formData.max_teams}
+                    onChange={(e) => handleInputChange('max_teams', parseInt(e.target.value) || 2)}
+                    className="bg-[#1a1a1a] border-gray-600 text-white"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-white">Tryb seedowania</Label>
+                  <Select
+                    value={formData.seeding_mode}
+                    onValueChange={(value: string) => handleInputChange('seeding_mode', value)}
+                  >
+                    <SelectTrigger className="bg-[#1a1a1a] border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#2a2a2a] border-gray-600">
+                      {seedingModes.map((mode) => (
+                        <SelectItem key={mode.value} value={mode.value}>
+                          {mode.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>

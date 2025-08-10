@@ -23,6 +23,8 @@ import {
   LogOut,
   Trophy,
   Users,
+  Menu,
+  X,
 } from "lucide-react"
 import { CreateTeamModal } from "@/components/create-team-modal"
 import { useAuth } from "@/lib/auth/auth-context"
@@ -35,6 +37,7 @@ export function Header() {
   const { user, customUser, loading, signOut } = useAuth()
   const { canCreateTournament, isAdmin } = useAdmin()
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = React.useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [unreadCount] = React.useState(5) // TODO: Replace with real data
   const [notificationsCount] = React.useState(3) // TODO: Replace with real data
@@ -94,11 +97,23 @@ export function Header() {
         {/* Left: Brand */}
         <div className="flex-shrink-0">{brand}</div>
 
-        {/* Center: Search */}
-        <div className="mx-8 flex flex-1 justify-center max-w-2xl">{search}</div>
+        {/* Center: Search - Hidden on mobile */}
+        <div className="hidden md:flex mx-8 flex-1 justify-center max-w-2xl">{search}</div>
+
+        {/* Mobile menu button */}
+        <div className="md:hidden">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="text-white hover:bg-white/10"
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+        </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="hidden md:flex items-center gap-2 flex-shrink-0">
           {user ? (
             <>
               {/* Create (outlined cyan pill with filled plus badge) */}
@@ -274,6 +289,144 @@ export function Header() {
           )}
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden absolute top-16 left-0 right-0 bg-[#0f1317] border-b border-[#1a2530] z-40">
+          <div className="p-4 space-y-4">
+            {/* Mobile Search */}
+            <div className="w-full">{search}</div>
+            
+            {user ? (
+              <>
+                {/* User Info */}
+                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-lg">
+                  <div className="h-10 w-10 overflow-hidden rounded-lg border border-white/10">
+                    <Image
+                      src={customUser?.avatar_url || "/images/demo-avatar.png"}
+                      alt="User avatar"
+                      width={40}
+                      height={40}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      {customUser?.display_name || customUser?.username || "Użytkownik"}
+                    </p>
+                    <p className="text-xs text-white/60">{customUser?.email}</p>
+                  </div>
+                </div>
+
+                {/* Mobile Navigation */}
+                <div className="space-y-2">
+                  <Button
+                    variant="ghost"
+                    asChild
+                    className="w-full justify-start text-white hover:bg-white/10"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Link href="/profile">
+                      <User className="h-4 w-4 mr-3" />
+                      Profil
+                    </Link>
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    asChild
+                    className="w-full justify-start text-white hover:bg-white/10"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Link href="/messages">
+                      <MessageSquare className="h-4 w-4 mr-3" />
+                      Wiadomości
+                      <span className="ml-auto inline-flex items-center rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold text-white/90">{unreadCount}</span>
+                    </Link>
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-white hover:bg-white/10"
+                  >
+                    <Bell className="h-4 w-4 mr-3" />
+                    Powiadomienia
+                    <span className="ml-auto inline-flex items-center rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold text-white/90">{notificationsCount}</span>
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setIsCreateTeamModalOpen(true)
+                      setIsMobileMenuOpen(false)
+                    }}
+                    className="w-full justify-start text-white hover:bg-white/10"
+                  >
+                    <Users className="h-4 w-4 mr-3" />
+                    Utwórz zespół
+                  </Button>
+                  
+                  {canCreateTournament && (
+                    <Button
+                      variant="ghost"
+                      asChild
+                      className="w-full justify-start text-white hover:bg-white/10"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <Link href="/tournaments/create">
+                        <Trophy className="h-4 w-4 mr-3" />
+                        Utwórz turniej
+                      </Link>
+                    </Button>
+                  )}
+                  
+                  <Button
+                    variant="ghost"
+                    asChild
+                    className="w-full justify-start text-white hover:bg-white/10"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Link href="/settings">
+                      <Settings className="h-4 w-4 mr-3" />
+                      Ustawienia
+                    </Link>
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      signOut()
+                      setIsMobileMenuOpen(false)
+                    }}
+                    className="w-full justify-start text-white hover:bg-white/10"
+                  >
+                    <LogOut className="h-4 w-4 mr-3" />
+                    Wyloguj
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  asChild
+                  className="w-full border-white/10 bg-transparent text-white/80 hover:text-white"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Link href="/auth/login">Zaloguj</Link>
+                </Button>
+                <Button 
+                  asChild 
+                  className="w-full bg-cyan-600 hover:bg-cyan-500"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Link href="/auth/register">Zarejestruj</Link>
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   )
 }

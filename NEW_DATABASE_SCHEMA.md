@@ -30,7 +30,7 @@ Ten dokument opisuje kompletnie przeprojektowany schemat bazy danych dla systemu
 
 ### 👤 **Moduł Użytkowników**
 
-#### `users` - Główna tabela użytkowników
+#### `users` - Użytkownicy systemu
 ```sql
 - id (UUID, PK)
 - supabase_user_id (UUID, UNIQUE) -- Klucz do auth.users
@@ -38,6 +38,7 @@ Ten dokument opisuje kompletnie przeprojektowany schemat bazy danych dla systemu
 - display_name (TEXT)
 - email (TEXT, UNIQUE)
 - avatar_url (TEXT)
+- banner_url (TEXT) -- URL do banera profilu
 - bio (TEXT)
 - country, city (TEXT)
 - date_of_birth (DATE)

@@ -142,6 +142,7 @@ export class UsersService {
             display_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || null,
             email: supabaseUser.email,
             avatar_url: supabaseUser.user_metadata?.avatar_url || null,
+            banner_url: '/banners/ProfilBaner.png', // Default banner
             bio: null,
             role: UserRole.USER, // Default role
           };

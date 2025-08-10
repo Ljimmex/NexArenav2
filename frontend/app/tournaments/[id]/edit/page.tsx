@@ -11,12 +11,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreateTournamentData, Tournament, tournamentsAPI } from '@/lib/api/tournaments'
+import { bracketsAPI } from '@/lib/api/brackets'
 import { Header } from '@/components/header'
 import { Sidebar } from '@/components/sidebar'
 import { useAuth } from '@/lib/auth/auth-context'
 import { useAdmin } from '@/lib/hooks/useAdmin'
 import toast from 'react-hot-toast'
 import { createClient } from '@supabase/supabase-js'
+import { Switch } from '@/components/ui/switch'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -47,6 +49,8 @@ export default function EditTournamentPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [regeneratingBracket, setRegeneratingBracket] = useState(false)
   const [formData, setFormData] = useState<Partial<CreateTournamentData>>({})
 
   // Redirect non-admin users
@@ -81,6 +85,13 @@ export default function EditTournamentPage() {
           tournament_end: tournamentData.tournament_end ? new Date(tournamentData.tournament_end).toISOString().slice(0, 16) : '',
           rules: tournamentData.rules || '',
           banner_url: tournamentData.banner_url || '',
+          // include existing format_settings or set sensible defaults for Single Elimination
+          format_settings: tournamentData.format_settings || {
+            single_elimination: {
+              bronze_match: false,
+              number_of_groups: 1,
+            },
+          },
         })
       } catch (error) {
         console.error('Error fetching tournament:', error)
@@ -198,6 +209,19 @@ export default function EditTournamentPage() {
     setFormData(prev => ({
       ...prev,
       [field]: value
+    }))
+  }
+
+  const handleSESettingChange = (path: 'bronze_match' | 'max_participants' | 'number_of_groups', value: boolean | number) => {
+    setFormData(prev => ({
+      ...prev,
+      format_settings: {
+        ...(prev.format_settings || {}),
+        single_elimination: {
+          ...(prev.format_settings?.single_elimination || {}),
+          [path]: value,
+        },
+      },
     }))
   }
 
@@ -390,6 +414,34 @@ export default function EditTournamentPage() {
     }
   }
 
+  const handleRegenerateBracket = async () => {
+    if (!tournament || tournament.tournament_type !== 'SINGLE_ELIMINATION') return
+
+    setRegeneratingBracket(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const formatSettings = formData.format_settings as any
+      const numberOfGroups = formatSettings?.single_elimination?.number_of_groups || 1
+      const bronzeMatch = formatSettings?.single_elimination?.bronze_match || false
+
+      await bracketsAPI.generateSingleElimination({
+        tournament_id: tournament.id,
+        max_participants: tournament.max_teams,
+        bronze_match: bronzeMatch,
+        number_of_groups: numberOfGroups,
+      })
+
+      setSuccess('Drabinka została pomyślnie wygenerowana!')
+    } catch (err: any) {
+      console.error('Error regenerating bracket:', err)
+      setError(err.message || 'Wystąpił błąd podczas generowania drabinki')
+    } finally {
+      setRegeneratingBracket(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       <Header />
@@ -537,6 +589,35 @@ export default function EditTournamentPage() {
                       />
                     </div>
                   </div>
+
+                  {formData.tournament_type === 'SINGLE_ELIMINATION' && (
+                    <div className="mt-2 p-4 border border-gray-700 rounded-lg bg-[#1f1f1f]">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="space-y-1">
+                          <Label className="text-white">Mecz o 3. miejsce</Label>
+                          <p className="text-sm text-gray-400">Dodaj dodatkowy mecz dla drużyn przegranych w półfinałach</p>
+                        </div>
+                        <Switch
+                          checked={Boolean((formData.format_settings as any)?.single_elimination?.bronze_match)}
+                          onCheckedChange={(checked: boolean) => handleSESettingChange('bronze_match', checked)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="se_number_of_groups" className="text-white">Liczba grup</Label>
+                        <Input
+                          id="se_number_of_groups"
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={Number((formData.format_settings as any)?.single_elimination?.number_of_groups) || 1}
+                          onChange={(e) => handleSESettingChange('number_of_groups', parseInt(e.target.value) || 1)}
+                          className="bg-[#2a2a2a] border-gray-600 text-white"
+                        />
+                        <p className="text-xs text-gray-400">Liczba grup w fazie grupowej (domyślnie 1 = bez fazy grupowej)</p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -697,6 +778,17 @@ export default function EditTournamentPage() {
                     Anuluj
                   </Button>
                 </Link>
+                {tournament.tournament_type === 'SINGLE_ELIMINATION' && (
+                  <Button 
+                    type="button"
+                    onClick={handleRegenerateBracket}
+                    disabled={regeneratingBracket}
+                    variant="outline"
+                    className="border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white"
+                  >
+                    {regeneratingBracket ? 'Generowanie...' : 'Regeneruj Drabinkę'}
+                  </Button>
+                )}
                 <Button 
                   type="submit" 
                   disabled={saving}

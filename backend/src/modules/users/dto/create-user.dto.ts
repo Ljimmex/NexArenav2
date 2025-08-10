@@ -30,6 +30,11 @@ export class CreateUserDto {
   @IsString()
   avatar_url?: string;
 
+  @ApiPropertyOptional({ description: 'Banner URL', example: 'https://example.com/banner.jpg' })
+  @IsOptional()
+  @IsString()
+  banner_url?: string;
+
   @ApiPropertyOptional({ description: 'User bio', example: 'Professional esports player' })
   @IsOptional()
   @IsString()

@@ -113,23 +113,23 @@ export function MainContent() {
     <div className="flex-1 bg-gray-950 text-white overflow-y-auto">
       {/* Hero Section */}
       <section>
-        <div className="relative h-80 bg-gradient-to-r from-purple-900 via-blue-900 to-purple-900 overflow-hidden">
+        <div className="relative h-64 sm:h-80 bg-gradient-to-r from-purple-900 via-blue-900 to-purple-900 overflow-hidden">
         <div className="absolute inset-0 bg-black/20" />
-        <div className="relative z-10 h-full flex items-center px-4 md:px-8">
+        <div className="relative z-10 h-full flex items-center px-4 sm:px-6 md:px-8">
           <div className="max-w-2xl">
-            <h1 className="text-3xl md:text-5xl font-bold mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold mb-3 sm:mb-4">
               Online soon
             </h1>
-            <p className="text-lg md:text-xl mb-2">
+            <p className="text-base sm:text-lg md:text-xl mb-2">
               Build your <span className="text-purple-400">team</span>
             </p>
-            <p className="text-gray-300 mb-6">more details ▸</p>
+            <p className="text-gray-300 mb-4 sm:mb-6 text-sm sm:text-base">more details ▸</p>
             <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-              <Button className="bg-purple-600 hover:bg-purple-700">
-                <Play className="h-4 w-4 mr-2" />
+              <Button className="bg-purple-600 hover:bg-purple-700 text-sm sm:text-base">
+                <Play className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                 Rozpocznij grę
               </Button>
-              <Button variant="outline" className="border-gray-600 text-gray-300">
+              <Button variant="outline" className="border-gray-600 text-gray-300 text-sm sm:text-base">
                 Dołącz do drużyny
               </Button>
             </div>
@@ -138,17 +138,17 @@ export function MainContent() {
       </div>
       </section>
 
-      <div className="p-4 md:p-8 space-y-8">
+      <div className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8">
         {/* Featured Games */}
         <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Polecane gry</h2>
-            <Button variant="ghost" className="text-gray-400 hover:text-white">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+            <h2 className="text-xl sm:text-2xl font-bold">Polecane gry</h2>
+            <Button variant="ghost" className="text-gray-400 hover:text-white text-sm sm:text-base">
               Zobacz wszystkie
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-2" />
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {featuredGames.map((game) => (
               <Card key={game.id} className="bg-gray-900 border-gray-800 hover:border-purple-500 transition-colors cursor-pointer group">
                 <CardContent className="p-0">
@@ -170,14 +170,14 @@ export function MainContent() {
 
         {/* Recently Played */}
         <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Ostatnio grane</h2>
-            <Button variant="ghost" className="text-gray-400 hover:text-white">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+            <h2 className="text-xl sm:text-2xl font-bold">Ostatnio grane</h2>
+            <Button variant="ghost" className="text-gray-400 hover:text-white text-sm sm:text-base">
               Zobacz wszystkie
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-2" />
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {recentlyPlayed.map((item) => (
               <Card key={item.id} className="bg-gray-900 border-gray-800 hover:border-purple-500 transition-colors cursor-pointer">
                 <CardContent className="p-0">
@@ -197,14 +197,14 @@ export function MainContent() {
 
         {/* Tournaments & Events */}
         <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Turnieje i wydarzenia</h2>
-            <Button variant="ghost" className="text-gray-400 hover:text-white">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+            <h2 className="text-xl sm:text-2xl font-bold">Turnieje i wydarzenia</h2>
+            <Button variant="ghost" className="text-gray-400 hover:text-white text-sm sm:text-base">
               Zobacz wszystkie
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-2" />
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {upcomingTournaments.map((tournament) => (
               <Card key={tournament.id} className="bg-gray-900 border-gray-800 hover:border-purple-500 transition-colors">
                 <CardHeader className="pb-3">

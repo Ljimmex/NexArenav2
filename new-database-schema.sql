@@ -150,6 +150,7 @@ CREATE TABLE "users" (
     "display_name" TEXT,
     "email" TEXT UNIQUE NOT NULL,
     "avatar_url" TEXT,
+    "banner_url" TEXT DEFAULT '/banners/ProfilBaner.png',
     "bio" TEXT,
     "country" TEXT,
     "city" TEXT,
@@ -418,6 +419,91 @@ CREATE TABLE "match_games" (
     CONSTRAINT "match_games_duration_positive" CHECK (duration_minutes IS NULL OR duration_minutes > 0)
 );
 
+-- Tabela veto map dla meczów
+CREATE TABLE "match_vetos" (
+    "id" UUID PRIMARY KEY DEFAULT generate_uuid(),
+    "match_id" UUID NOT NULL REFERENCES "matches"("id") ON DELETE CASCADE,
+    "map_name" TEXT NOT NULL,
+    "action_type" TEXT NOT NULL CHECK (action_type IN ('BAN', 'PICK', 'DECIDER')),
+    "team_id" UUID REFERENCES "teams"("id"),
+    "side_choice" TEXT CHECK (side_choice IN ('CT', 'T', 'TERRORIST', 'COUNTER_TERRORIST')),
+    "is_decider" BOOLEAN DEFAULT FALSE,
+    "order_number" INTEGER NOT NULL,
+    "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    
+    -- Ograniczenia
+    UNIQUE("match_id", "order_number"),
+    CONSTRAINT "match_vetos_order_positive" CHECK (order_number > 0),
+    CONSTRAINT "match_vetos_side_choice_logic" CHECK (
+        (action_type = 'PICK' AND side_choice IS NOT NULL) OR 
+        (action_type IN ('BAN', 'DECIDER') AND side_choice IS NULL)
+    )
+);
+
+-- Tabela wyników map w meczach
+CREATE TABLE "match_map_scores" (
+    "id" UUID PRIMARY KEY DEFAULT generate_uuid(),
+    "match_id" UUID NOT NULL REFERENCES "matches"("id") ON DELETE CASCADE,
+    "map_name" TEXT NOT NULL,
+    "map_order" INTEGER NOT NULL,
+    "team1_score" INTEGER NOT NULL DEFAULT 0,
+    "team2_score" INTEGER NOT NULL DEFAULT 0,
+    "winner_id" UUID REFERENCES "teams"("id"),
+    "team1_starting_side" TEXT CHECK (team1_starting_side IN ('CT', 'T', 'TERRORIST', 'COUNTER_TERRORIST')),
+    "team2_starting_side" TEXT CHECK (team2_starting_side IN ('CT', 'T', 'TERRORIST', 'COUNTER_TERRORIST')),
+    "side_swapped_at_round" INTEGER DEFAULT NULL,
+    "is_decider_map" BOOLEAN DEFAULT FALSE,
+    "duration_minutes" INTEGER,
+    "started_at" TIMESTAMP WITH TIME ZONE,
+    "finished_at" TIMESTAMP WITH TIME ZONE,
+    "overtime_rounds" INTEGER DEFAULT 0,
+    "notes" TEXT,
+    
+    -- Ograniczenia
+    UNIQUE("match_id", "map_order"),
+    CONSTRAINT "match_map_scores_order_positive" CHECK (map_order > 0),
+    CONSTRAINT "match_map_scores_scores_non_negative" CHECK (team1_score >= 0 AND team2_score >= 0),
+    CONSTRAINT "match_map_scores_overtime_non_negative" CHECK (overtime_rounds >= 0),
+    CONSTRAINT "match_map_scores_different_sides" CHECK (
+        (team1_starting_side IS NULL AND team2_starting_side IS NULL) OR
+        (team1_starting_side IS NOT NULL AND team2_starting_side IS NOT NULL AND team1_starting_side != team2_starting_side)
+    )
+);
+
+-- Tabela wyników graczy na mapach
+CREATE TABLE "player_map_scores" (
+    "id" UUID PRIMARY KEY DEFAULT generate_uuid(),
+    "map_score_id" UUID NOT NULL REFERENCES "match_map_scores"("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "team_id" UUID NOT NULL REFERENCES "teams"("id") ON DELETE CASCADE,
+    "kills" INTEGER NOT NULL DEFAULT 0,
+    "deaths" INTEGER NOT NULL DEFAULT 0,
+    "assists" INTEGER NOT NULL DEFAULT 0,
+    "headshots" INTEGER DEFAULT 0,
+    "damage_dealt" INTEGER DEFAULT 0,
+    "damage_taken" INTEGER DEFAULT 0,
+    "rounds_played" INTEGER NOT NULL DEFAULT 0,
+    "mvp_rounds" INTEGER DEFAULT 0,
+    "first_kills" INTEGER DEFAULT 0,
+    "first_deaths" INTEGER DEFAULT 0,
+    "clutch_wins" INTEGER DEFAULT 0,
+    "rating" DECIMAL(4,2) DEFAULT 0.00,
+    "adr" DECIMAL(6,2) DEFAULT 0.00, -- Average Damage per Round
+    "kast" DECIMAL(5,2) DEFAULT 0.00, -- Kill, Assist, Survive, Trade percentage
+    
+    -- Ograniczenia
+    UNIQUE("map_score_id", "user_id"),
+    CONSTRAINT "player_map_scores_stats_non_negative" CHECK (
+        kills >= 0 AND deaths >= 0 AND assists >= 0 AND 
+        headshots >= 0 AND damage_dealt >= 0 AND damage_taken >= 0 AND
+        rounds_played >= 0 AND mvp_rounds >= 0 AND 
+        first_kills >= 0 AND first_deaths >= 0 AND clutch_wins >= 0
+    ),
+    CONSTRAINT "player_map_scores_rating_range" CHECK (rating >= 0.00 AND rating <= 5.00),
+    CONSTRAINT "player_map_scores_adr_non_negative" CHECK (adr >= 0.00),
+    CONSTRAINT "player_map_scores_kast_percentage" CHECK (kast >= 0.00 AND kast <= 100.00)
+);
+
 -- =====================================================
 -- 8. TABELE POMOCNICZE
 -- =====================================================
@@ -514,6 +600,27 @@ CREATE INDEX "idx_matches_team2_id" ON "matches"("team2_id");
 CREATE INDEX "idx_matches_status" ON "matches"("status");
 CREATE INDEX "idx_matches_scheduled_at" ON "matches"("scheduled_at");
 
+-- Indeksy dla tabeli match_vetos
+CREATE INDEX "idx_match_vetos_match_id" ON "match_vetos"("match_id");
+CREATE INDEX "idx_match_vetos_team_id" ON "match_vetos"("team_id");
+CREATE INDEX "idx_match_vetos_order" ON "match_vetos"("order_number");
+CREATE INDEX "idx_match_vetos_action_type" ON "match_vetos"("action_type");
+CREATE INDEX "idx_match_vetos_is_decider" ON "match_vetos"("is_decider");
+CREATE INDEX "idx_match_vetos_side_choice" ON "match_vetos"("side_choice");
+
+-- Indeksy dla tabeli match_map_scores
+CREATE INDEX "idx_match_map_scores_match_id" ON "match_map_scores"("match_id");
+CREATE INDEX "idx_match_map_scores_winner_id" ON "match_map_scores"("winner_id");
+CREATE INDEX "idx_match_map_scores_map_order" ON "match_map_scores"("map_order");
+CREATE INDEX "idx_match_map_scores_is_decider" ON "match_map_scores"("is_decider_map");
+CREATE INDEX "idx_match_map_scores_starting_sides" ON "match_map_scores"("team1_starting_side", "team2_starting_side");
+
+-- Indeksy dla tabeli player_map_scores
+CREATE INDEX "idx_player_map_scores_map_score_id" ON "player_map_scores"("map_score_id");
+CREATE INDEX "idx_player_map_scores_user_id" ON "player_map_scores"("user_id");
+CREATE INDEX "idx_player_map_scores_team_id" ON "player_map_scores"("team_id");
+CREATE INDEX "idx_player_map_scores_rating" ON "player_map_scores"("rating");
+
 -- Indeksy dla tabeli notifications
 CREATE INDEX "idx_notifications_user_id" ON "notifications"("user_id");
 CREATE INDEX "idx_notifications_is_read" ON "notifications"("is_read");
@@ -561,6 +668,147 @@ CREATE TRIGGER "update_matches_updated_at"
 CREATE TRIGGER "update_support_tickets_updated_at" 
     BEFORE UPDATE ON "support_tickets" 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- 10.1. FUNKCJE I TRIGGERY DLA SYSTEMU VETO
+-- =====================================================
+
+-- Funkcja sprawdzająca poprawność procesu veto
+CREATE OR REPLACE FUNCTION validate_veto_process(p_match_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+    veto_count INTEGER;
+    pick_count INTEGER;
+    decider_count INTEGER;
+    ban_count INTEGER;
+BEGIN
+    -- Policz różne typy akcji veto
+    SELECT 
+        COUNT(*),
+        COUNT(*) FILTER (WHERE action_type = 'PICK'),
+        COUNT(*) FILTER (WHERE action_type = 'DECIDER'),
+        COUNT(*) FILTER (WHERE action_type = 'BAN')
+    INTO veto_count, pick_count, decider_count, ban_count
+    FROM match_vetos 
+    WHERE match_id = p_match_id;
+    
+    -- Walidacja:
+    -- 1. Maksymalnie jeden decider na mecz
+    -- 2. Każdy PICK musi mieć wybór strony
+    -- 3. DECIDER i BAN nie mogą mieć wyboru strony
+    
+    IF decider_count > 1 THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Sprawdź czy wszystkie PICK mają wybór strony
+    IF EXISTS (
+        SELECT 1 FROM match_vetos 
+        WHERE match_id = p_match_id 
+        AND action_type = 'PICK' 
+        AND side_choice IS NULL
+    ) THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Sprawdź czy BAN i DECIDER nie mają wyboru strony
+    IF EXISTS (
+        SELECT 1 FROM match_vetos 
+        WHERE match_id = p_match_id 
+        AND action_type IN ('BAN', 'DECIDER') 
+        AND side_choice IS NOT NULL
+    ) THEN
+        RETURN FALSE;
+    END IF;
+    
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger sprawdzający poprawność veto przy każdej zmianie
+CREATE OR REPLACE FUNCTION trigger_validate_veto()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Sprawdź poprawność procesu veto dla tego meczu
+    IF NOT validate_veto_process(NEW.match_id) THEN
+        RAISE EXCEPTION 'Invalid veto process for match %', NEW.match_id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Utwórz trigger walidacji veto
+CREATE TRIGGER validate_veto_trigger
+    AFTER INSERT OR UPDATE ON match_vetos
+    FOR EACH ROW EXECUTE FUNCTION trigger_validate_veto();
+
+-- Funkcja do synchronizacji map z veto
+CREATE OR REPLACE FUNCTION sync_maps_from_veto(p_match_id UUID)
+RETURNS VOID AS $$
+DECLARE
+    veto_record RECORD;
+    map_order INTEGER := 1;
+BEGIN
+    -- Usuń istniejące rekordy map dla tego meczu
+    DELETE FROM match_map_scores WHERE match_id = p_match_id;
+    
+    -- Dodaj mapy na podstawie veto (PICK i DECIDER)
+    FOR veto_record IN 
+        SELECT mv.*, t1.id as team1_id, t2.id as team2_id
+        FROM match_vetos mv
+        JOIN matches m ON mv.match_id = m.id
+        JOIN teams t1 ON m.team1_id = t1.id
+        JOIN teams t2 ON m.team2_id = t2.id
+        WHERE mv.match_id = p_match_id 
+        AND mv.action_type IN ('PICK', 'DECIDER')
+        ORDER BY mv.order_number
+    LOOP
+        INSERT INTO match_map_scores (
+            match_id,
+            map_name,
+            map_order,
+            team1_starting_side,
+            team2_starting_side,
+            is_decider_map
+        ) VALUES (
+            p_match_id,
+            veto_record.map_name,
+            map_order,
+            CASE 
+                WHEN veto_record.team_id = veto_record.team1_id THEN veto_record.side_choice
+                WHEN veto_record.team_id = veto_record.team2_id THEN 
+                    CASE veto_record.side_choice
+                        WHEN 'CT' THEN 'T'
+                        WHEN 'T' THEN 'CT'
+                        WHEN 'COUNTER_TERRORIST' THEN 'TERRORIST'
+                        WHEN 'TERRORIST' THEN 'COUNTER_TERRORIST'
+                    END
+                ELSE NULL
+            END,
+            CASE 
+                WHEN veto_record.team_id = veto_record.team2_id THEN veto_record.side_choice
+                WHEN veto_record.team_id = veto_record.team1_id THEN 
+                    CASE veto_record.side_choice
+                        WHEN 'CT' THEN 'T'
+                        WHEN 'T' THEN 'CT'
+                        WHEN 'COUNTER_TERRORIST' THEN 'TERRORIST'
+                        WHEN 'TERRORIST' THEN 'COUNTER_TERRORIST'
+                    END
+                ELSE NULL
+            END,
+            veto_record.action_type = 'DECIDER'
+        );
+        
+        map_order := map_order + 1;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Unikalne ograniczenie dla decider w meczu
+CREATE UNIQUE INDEX "idx_match_vetos_unique_decider" 
+ON "match_vetos"("match_id") 
+WHERE "is_decider" = TRUE;
 
 -- =====================================================
 -- 11. INTEGRACJA Z SUPABASE AUTH
@@ -693,6 +941,9 @@ ALTER TABLE "tournaments" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "tournament_teams" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "matches" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "match_games" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "match_vetos" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "match_map_scores" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "player_map_scores" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "notifications" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "support_tickets" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "support_responses" ENABLE ROW LEVEL SECURITY;
@@ -802,6 +1053,46 @@ CREATE POLICY "Users can create tickets" ON "support_tickets"
 CREATE POLICY "Ticket creators can update own tickets" ON "support_tickets"
     FOR UPDATE USING (
         creator_id IN (SELECT id FROM users WHERE supabase_user_id = auth.uid())
+    );
+
+-- Polityki RLS dla tabeli match_vetos
+CREATE POLICY "Match vetos are viewable by everyone" ON "match_vetos"
+    FOR SELECT USING (true);
+
+CREATE POLICY "Tournament organizers can manage match vetos" ON "match_vetos"
+    FOR ALL USING (
+        match_id IN (
+            SELECT m.id FROM matches m
+            JOIN tournaments t ON m.tournament_id = t.id
+            WHERE t.organizer_id IN (SELECT id FROM users WHERE supabase_user_id = auth.uid())
+        )
+    );
+
+-- Polityki RLS dla tabeli match_map_scores
+CREATE POLICY "Match map scores are viewable by everyone" ON "match_map_scores"
+    FOR SELECT USING (true);
+
+CREATE POLICY "Tournament organizers can manage match map scores" ON "match_map_scores"
+    FOR ALL USING (
+        match_id IN (
+            SELECT m.id FROM matches m
+            JOIN tournaments t ON m.tournament_id = t.id
+            WHERE t.organizer_id IN (SELECT id FROM users WHERE supabase_user_id = auth.uid())
+        )
+    );
+
+-- Polityki RLS dla tabeli player_map_scores
+CREATE POLICY "Player map scores are viewable by everyone" ON "player_map_scores"
+    FOR SELECT USING (true);
+
+CREATE POLICY "Tournament organizers can manage player map scores" ON "player_map_scores"
+    FOR ALL USING (
+        map_score_id IN (
+            SELECT mms.id FROM match_map_scores mms
+            JOIN matches m ON mms.match_id = m.id
+            JOIN tournaments t ON m.tournament_id = t.id
+            WHERE t.organizer_id IN (SELECT id FROM users WHERE supabase_user_id = auth.uid())
+        )
     );
 
 -- =====================================================

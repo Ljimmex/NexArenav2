@@ -37,6 +37,8 @@ import { TournamentHeader } from '@/components/tournament-header'
 import { TournamentNavigation } from '@/components/tournament-navigation'
 import { Tournament, tournamentsAPI } from '@/lib/api/tournaments'
 import { Team, teamsAPI } from '@/lib/api/teams'
+import { bracketsAPI } from '@/lib/api/brackets'
+import { BracketDisplay } from '@/components/bracket-display'
 import { useAuth } from '@/lib/auth/auth-context'
 import { useAdmin } from '@/lib/hooks/useAdmin'
 import toast from 'react-hot-toast'
@@ -96,6 +98,9 @@ export default function TournamentDetailPage() {
   const [registeredTeams, setRegisteredTeams] = useState<any[]>([])
   const [isRegistering, setIsRegistering] = useState(false)
   const [loadingTeams, setLoadingTeams] = useState(false)
+  const [bracketData, setBracketData] = useState<any>(null)
+  const [loadingBracket, setLoadingBracket] = useState(false)
+  const [syncingBracket, setSyncingBracket] = useState(false)
 
   useEffect(() => {
     const fetchTournament = async () => {
@@ -149,6 +154,25 @@ export default function TournamentDetailPage() {
 
     fetchRegisteredTeams()
   }, [tournament?.id])
+
+  useEffect(() => {
+    const fetchBracket = async () => {
+      if (!tournament?.id || tournament.tournament_type !== 'SINGLE_ELIMINATION') return
+      
+      try {
+        setLoadingBracket(true)
+        const bracket = await bracketsAPI.getMatches(tournament.id)
+        setBracketData(bracket)
+      } catch (error) {
+        console.error('Error fetching bracket:', error)
+        // Don't set error state here as bracket might not exist yet
+      } finally {
+        setLoadingBracket(false)
+      }
+    }
+
+    fetchBracket()
+  }, [tournament?.id, tournament?.tournament_type])
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'TBD'
@@ -227,6 +251,28 @@ export default function TournamentDetailPage() {
 
   const handleEditTournament = () => {
     router.push(`/tournaments/${tournament?.id}/edit`)
+  }
+
+  const handleSyncBracket = async () => {
+    if (!tournament?.id) return
+    
+    try {
+      setSyncingBracket(true)
+      const toastId = toast.loading('Synchronizowanie bracket...')
+      
+      await bracketsAPI.syncBracketMatches(tournament.id)
+      
+      // Refresh bracket data
+      const bracket = await bracketsAPI.getMatches(tournament.id)
+      setBracketData(bracket)
+      
+      toast.success('Bracket został zsynchronizowany', { id: toastId })
+    } catch (error) {
+      console.error('Error syncing bracket:', error)
+      toast.error('Błąd podczas synchronizacji bracket')
+    } finally {
+      setSyncingBracket(false)
+    }
   }
 
   const isUserRegistered = registeredTeams.some(team => 
@@ -403,9 +449,48 @@ export default function TournamentDetailPage() {
               </TabsContent>
                   
               <TabsContent value="brackets" className="mt-8">
-                <div className="bg-gray-800/50 rounded-lg p-6">
-                  <p className="text-gray-400">Tournament bracket will be generated after registration closes.</p>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-white font-semibold">Tournament Bracket</h3>
+                  {canEditTournament && (
+                    <Button
+                      onClick={handleSyncBracket}
+                      disabled={syncingBracket}
+                      className="bg-cyan-400 text-black hover:bg-cyan-300"
+                    >
+                      {syncingBracket ? 'Synchronizowanie...' : 'Synchronizuj Bracket'}
+                    </Button>
+                  )}
                 </div>
+                <BracketDisplay 
+                  bracketData={bracketData} 
+                  loading={loadingBracket}
+                  onMatchClick={(match) => {
+                    const participant1Name = match.participant1?.name || 'TBD';
+                    const participant2Name = match.participant2?.name || 'TBD';
+                    const statusText = match.status === 'PENDING' ? 'Oczekuje' : 
+                                     match.status === 'LIVE' ? 'Na żywo' :
+                                     match.status === 'COMPLETED' ? 'Zakończony' :
+                                     match.status === 'SCHEDULED' ? 'Zaplanowany' : match.status;
+                    
+                    const details = [
+                      `Mecz: ${participant1Name} vs ${participant2Name}`,
+                      `Status: ${statusText}`,
+                      `Runda: ${match.round}`,
+                      `ID meczu: ${match.id}`,
+                    ];
+                    
+                    if (match.score1 !== undefined && match.score2 !== undefined) {
+                      details.push(`Wynik: ${match.score1} - ${match.score2}`);
+                    }
+                    
+                    if (match.scheduled_at) {
+                      const scheduledDate = new Date(match.scheduled_at).toLocaleString('pl-PL');
+                      details.push(`Zaplanowany na: ${scheduledDate}`);
+                    }
+                    
+                    alert(details.join('\n'));
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="matches" className="mt-8">

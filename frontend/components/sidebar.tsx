@@ -19,7 +19,7 @@ export function Sidebar() {
   return (
     <aside
       aria-label="Główna nawigacja"
-      className="fixed left-0 top-16 z-40 h-[calc(100dvh-4rem)] w-20 border-r border-[#1a2530] bg-[#0f1317]"
+      className="hidden md:block fixed left-0 top-16 z-40 h-[calc(100dvh-4rem)] w-20 border-r border-[#1a2530] bg-[#0f1317]"
     >
       <nav className="flex h-full w-full flex-col items-center gap-3 px-3 py-4">
         {navigationItems.map((item) => {

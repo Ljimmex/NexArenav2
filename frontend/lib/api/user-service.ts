@@ -7,6 +7,7 @@ export interface User {
   display_name?: string
   email?: string
   avatar_url?: string
+  banner_url?: string
   bio?: string
   role: string
   is_active: boolean
@@ -19,6 +20,7 @@ export interface CreateUserDto {
   display_name?: string
   email?: string
   avatar_url?: string
+  banner_url?: string
   bio?: string
   supabase_user_id?: string
 }
@@ -28,6 +30,7 @@ export interface UpdateUserDto {
   display_name?: string
   email?: string
   avatar_url?: string
+  banner_url?: string
   bio?: string
   is_active?: boolean
 }

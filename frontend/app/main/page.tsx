@@ -155,7 +155,7 @@ export default function MainPage() {
     <div className="min-h-screen bg-[#0a0f14] text-white">
       <Header />
       <Sidebar />
-      <main className="pl-20">
+      <main className="md:pl-20">
         <section className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           {/* Hero */}
           <div className="relative mb-8 overflow-hidden rounded-3xl border border-white/10 bg-[#0f1317]">
@@ -427,8 +427,12 @@ export default function MainPage() {
                         </div>
                         <div className="flex justify-end gap-1 mt-1">
                           {m.teams.a.players.slice(0, 5).map((player, i) => (
-                            <div key={i} className="h-4 w-4 rounded-full bg-white/20 border border-white/30">
-                              <div className="h-full w-full rounded-full bg-gradient-to-br from-cyan-400/20 to-blue-500/20"></div>
+                            <div key={i} className="h-4 w-4 rounded-full border border-white/30 overflow-hidden">
+                              <img 
+                                src={`/images/Avatar${i + 1}.png`} 
+                                alt={`Avatar ${i + 1}`}
+                                className="w-full h-full object-cover"
+                              />
                             </div>
                           ))}
                         </div>
@@ -455,8 +459,12 @@ export default function MainPage() {
                         </div>
                         <div className="flex gap-1 mt-1">
                           {m.teams.b.players.slice(0, 5).map((player, i) => (
-                            <div key={i} className="h-4 w-4 rounded-full bg-white/20 border border-white/30">
-                              <div className="h-full w-full rounded-full bg-gradient-to-br from-purple-400/20 to-pink-500/20"></div>
+                            <div key={i} className="h-4 w-4 rounded-full border border-white/30 overflow-hidden">
+                              <img 
+                                src={`/images/Avatar${i + 1}.png`} 
+                                alt={`Avatar ${i + 1}`}
+                                className="w-full h-full object-cover"
+                              />
                             </div>
                           ))}
                         </div>
