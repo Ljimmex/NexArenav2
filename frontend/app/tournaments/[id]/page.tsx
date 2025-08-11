@@ -27,7 +27,8 @@ import {
   Info,
   Edit,
   Trash2,
-  ChevronDown
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -102,9 +103,34 @@ export default function TournamentDetailPage() {
   const [bracketData, setBracketData] = useState<any>(null)
   const [loadingBracket, setLoadingBracket] = useState(false)
   const [syncingBracket, setSyncingBracket] = useState(false)
+  const [syncingFromMatches, setSyncingFromMatches] = useState(false)
   const [groups, setGroups] = useState<GroupInfo[]>([])
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [loadingGroups, setLoadingGroups] = useState(false)
+
+  const handleRefreshBracket = async () => {
+    if (!tournament?.id) return
+    
+    try {
+      setLoadingBracket(true)
+      const toastId = toast.loading('Odświeżanie danych...')
+      
+      // Refresh bracket data and groups
+      const [bracket, groupsData] = await Promise.all([
+        bracketsAPI.getMatches(tournament.id, selectedGroup || undefined),
+        bracketsAPI.getGroups(tournament.id)
+      ])
+      setBracketData(bracket)
+      setGroups(groupsData)
+      
+      toast.success('Dane zostały odświeżone', { id: toastId })
+    } catch (error) {
+      console.error('Error refreshing bracket:', error)
+      toast.error('Błąd podczas odświeżania danych')
+    } finally {
+      setLoadingBracket(false)
+    }
+  }
 
   useEffect(() => {
     const fetchTournament = async () => {
@@ -195,6 +221,30 @@ export default function TournamentDetailPage() {
     }
 
     fetchBracket()
+  }, [tournament?.id, tournament?.tournament_type, selectedGroup])
+
+  // Auto-refresh data when user returns to the tab
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && tournament?.id && tournament.tournament_type === 'SINGLE_ELIMINATION') {
+        // Refresh bracket data silently when user returns to the tab
+        try {
+          const [bracket, groupsData] = await Promise.all([
+            bracketsAPI.getMatches(tournament.id, selectedGroup || undefined),
+            bracketsAPI.getGroups(tournament.id)
+          ])
+          setBracketData(bracket)
+          setGroups(groupsData)
+        } catch (error) {
+          console.error('Error auto-refreshing bracket:', error)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [tournament?.id, tournament?.tournament_type, selectedGroup])
 
   const formatDate = (dateString?: string) => {
@@ -299,6 +349,32 @@ export default function TournamentDetailPage() {
       toast.error('Błąd podczas synchronizacji bracket')
     } finally {
       setSyncingBracket(false)
+    }
+  }
+
+  const handleSyncFromMatches = async () => {
+    if (!tournament?.id) return
+    
+    try {
+      setSyncingFromMatches(true)
+      const toastId = toast.loading('Synchronizowanie z meczów...')
+      
+      await bracketsAPI.syncFromMatches(tournament.id)
+      
+      // Refresh bracket data and groups
+      const [bracket, groupsData] = await Promise.all([
+        bracketsAPI.getMatches(tournament.id, selectedGroup || undefined),
+        bracketsAPI.getGroups(tournament.id)
+      ])
+      setBracketData(bracket)
+      setGroups(groupsData)
+      
+      toast.success('Bracket został zsynchronizowany z meczów', { id: toastId })
+    } catch (error) {
+      console.error('Error syncing from matches:', error)
+      toast.error('Błąd podczas synchronizacji z meczów')
+    } finally {
+      setSyncingFromMatches(false)
     }
   }
 
@@ -478,7 +554,6 @@ export default function TournamentDetailPage() {
               <TabsContent value="brackets" className="mt-8">
                 <div className="flex justify-between items-center mb-6">
                   <div className="flex items-center gap-4">
-                    <h3 className="text-white font-semibold">Tournament Bracket</h3>
                     <GroupSelector
                       groups={groups}
                       selectedGroup={selectedGroup}
@@ -486,15 +561,36 @@ export default function TournamentDetailPage() {
                       loading={loadingGroups}
                     />
                   </div>
-                  {canEditTournament && (
+                  <div className="flex items-center gap-2">
                     <Button
-                      onClick={handleSyncBracket}
-                      disabled={syncingBracket}
-                      className="bg-cyan-400 text-black hover:bg-cyan-300"
+                      onClick={handleRefreshBracket}
+                      disabled={loadingBracket}
+                      variant="outline"
+                      className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
                     >
-                      {syncingBracket ? 'Synchronizowanie...' : 'Synchronizuj Bracket'}
+                      <RefreshCw className={`h-4 w-4 mr-2 ${loadingBracket ? 'animate-spin' : ''}`} />
+                      {loadingBracket ? 'Odświeżanie...' : 'Odśwież'}
                     </Button>
-                  )}
+                    {canEditTournament && (
+                      <>
+                        <Button
+                          onClick={handleSyncBracket}
+                          disabled={syncingBracket}
+                          className="bg-cyan-400 text-black hover:bg-cyan-300"
+                        >
+                          {syncingBracket ? 'Synchronizowanie...' : 'Synchronizuj Bracket'}
+                        </Button>
+                        <Button
+                          onClick={handleSyncFromMatches}
+                          disabled={syncingFromMatches}
+                          variant="outline"
+                          className="border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black"
+                        >
+                          {syncingFromMatches ? 'Synchronizowanie...' : 'Sync z Meczów'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <BracketDisplay 
                   bracketData={bracketData} 

@@ -422,6 +422,12 @@ export default function EditTournamentPage() {
     setSuccess(null)
 
     try {
+      // Refresh token before making API call
+      const tokenRefreshed = await refreshToken()
+      if (!tokenRefreshed) {
+        throw new Error('Nie udało się odświeżyć tokenu autoryzacji. Spróbuj się wylogować i zalogować ponownie.')
+      }
+
       const formatSettings = formData.format_settings as any
       const numberOfGroups = formatSettings?.single_elimination?.number_of_groups || 1
       const bronzeMatch = formatSettings?.single_elimination?.bronze_match || false

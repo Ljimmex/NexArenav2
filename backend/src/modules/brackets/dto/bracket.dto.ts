@@ -146,6 +146,43 @@ export class BracketMatchDto {
   @ValidateNested()
   @Type(() => ParticipantDto)
   disqualified_participant?: ParticipantDto;
+
+  @ApiPropertyOptional({ description: 'When the match actually started' })
+  @IsOptional()
+  @IsString()
+  started_at?: string;
+
+  @ApiPropertyOptional({ description: 'When the match finished' })
+  @IsOptional()
+  @IsString()
+  finished_at?: string;
+
+  @ApiPropertyOptional({ description: 'Current game number in series' })
+  @IsOptional()
+  @IsNumber()
+  current_game?: number;
+
+  @ApiPropertyOptional({ description: 'Detailed per-map/game scores' })
+  @IsOptional()
+  detailed_scores?: any[];
+
+  @ApiPropertyOptional({ description: 'Map pool' })
+  @IsOptional()
+  map_pool?: string[];
+
+  @ApiPropertyOptional({ description: 'Map picks/bans as object' })
+  @IsOptional()
+  map_picks?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: 'Stream URL' })
+  @IsOptional()
+  @IsString()
+  stream_url?: string;
+
+  @ApiPropertyOptional({ description: 'Additional notes' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class BracketRoundDto {
@@ -246,6 +283,8 @@ export class SingleEliminationBracketDto {
     is_finalized: boolean;
     is_bracket_complete?: boolean;
     advancement_rules?: string;
+    original_groups?: number;
+    advance_per_group?: number;
     placements?: Array<{
       participant_id: string;
       name?: string;

@@ -22,7 +22,18 @@ export class BracketsController {
   @ApiResponse({ status: 201, description: 'Bracket generated', type: SingleEliminationBracketDto as any })
   @HttpCode(HttpStatus.CREATED)
   async generateSingleElimination(@Body() dto: GenerateBracketDto): Promise<SingleEliminationBracketDto> {
-    return this.bracketsService.generateSingleElimination(dto);
+    try {
+      console.log('=== CONTROLLER: Received request ===');
+      console.log('DTO:', JSON.stringify(dto, null, 2));
+      const result = await this.bracketsService.generateSingleElimination(dto);
+      console.log('=== CONTROLLER: Request completed successfully ===');
+      return result;
+    } catch (error) {
+      console.error('=== CONTROLLER: Error occurred ===');
+      console.error('Error details:', error);
+      console.error('Error stack:', error.stack);
+      throw error;
+    }
   }
 
   @Post('single-elimination/update-match')
@@ -121,12 +132,24 @@ export class BracketsController {
   async syncMatches(@Param('tournamentId') tournamentId: string) {
     return this.bracketsService.syncBracketMatchesToDatabase(tournamentId);
   }
-  @ApiOperation({ summary: 'Get a single match by ID for Single Elimination bracket' })
-  @ApiResponse({ status: 200, description: 'Match details', type: Object as any })
-  async getMatch(
-    @Param('tournamentId') tournamentId: string,
-    @Param('matchId') matchId: string,
-  ): Promise<BracketMatchDto> {
-    return this.bracketsService.getSingleEliminationMatch(tournamentId, matchId);
+
+  @Post('single-elimination/:tournamentId/sync-from-matches')
+  @UseGuards(AuthGuard, RoleGuard)
+  @Roles(UserRole.ADMIN, UserRole.ORGANIZER)
+  @ApiOperation({ summary: 'Synchronize bracket_data from changes in matches table' })
+  @ApiResponse({ status: 200, description: 'Bracket data synchronized from matches table' })
+  @HttpCode(HttpStatus.OK)
+  async syncFromMatches(@Param('tournamentId') tournamentId: string) {
+    return this.bracketsService.syncMatchesToBracket(tournamentId);
+  }
+
+  @Post('single-elimination/:tournamentId/clear-matches')
+  @UseGuards(AuthGuard, RoleGuard)
+  @Roles(UserRole.ADMIN, UserRole.ORGANIZER)
+  @ApiOperation({ summary: 'Clear all matches for a tournament' })
+  @ApiResponse({ status: 200, description: 'All matches cleared successfully' })
+  @HttpCode(HttpStatus.OK)
+  async clearMatches(@Param('tournamentId') tournamentId: string) {
+    return this.bracketsService.clearTournamentMatches(tournamentId);
   }
 }

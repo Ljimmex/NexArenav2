@@ -37,4 +37,8 @@ export const bracketsAPI = {
   async syncBracketMatches(tournamentId: string): Promise<{ message: string; matchesCreated: number }> {
     return apiClient.post<{ message: string; matchesCreated: number }>(`/brackets/single-elimination/${tournamentId}/sync-matches`)
   },
+
+  async syncFromMatches(tournamentId: string): Promise<{ message: string; matchesUpdated: number }> {
+    return apiClient.post<{ message: string; matchesUpdated: number }>(`/brackets/single-elimination/${tournamentId}/sync-from-matches`)
+  },
 }

@@ -49,6 +49,7 @@ export class SingleEliminationGenerator {
           participant1: p1,
           participant2: p2,
           status: MatchStatus.PENDING,
+          best_of: 1,
         };
 
         matches.push(match);
@@ -75,6 +76,7 @@ export class SingleEliminationGenerator {
         participant2: this.placeholderLoser(semifinalRound.matches[1]),
         status: MatchStatus.PENDING,
         is_bronze_match: true,
+        best_of: 1,
       } as any;
 
       const bronzeRound: BracketRoundDto = {

@@ -225,7 +225,18 @@ export class MatchesService {
       .single()
 
     if (error) throw new BadRequestException(error.message)
-    return data as unknown as MatchDto
+    
+    const updatedMatch = data as unknown as MatchDto
+    
+    // Trigger bracket synchronization if this is a bracket match
+    if (updatedMatch.tournament_id) {
+      this.triggerBracketSync(updatedMatch.tournament_id).catch(error => {
+        console.error('Error triggering bracket sync:', error)
+        // Don't throw here to avoid breaking match update
+      })
+    }
+    
+    return updatedMatch
   }
 
   async remove(id: string): Promise<{ id: string }> {
@@ -248,7 +259,17 @@ export class MatchesService {
       .single()
 
     if (error) throw new BadRequestException(error.message)
-    return data as unknown as MatchDto
+    
+    const updatedMatch = data as unknown as MatchDto
+    
+    // Trigger bracket synchronization
+    if (updatedMatch.tournament_id) {
+      this.triggerBracketSync(updatedMatch.tournament_id).catch(error => {
+        console.error('Error triggering bracket sync:', error)
+      })
+    }
+    
+    return updatedMatch
   }
 
   async finishMatch(id: string, winnerId?: string): Promise<MatchDto> {
@@ -271,7 +292,39 @@ export class MatchesService {
       .single()
 
     if (error) throw new BadRequestException(error.message)
-    return data as unknown as MatchDto
+    
+    const updatedMatch = data as unknown as MatchDto
+    
+    // Trigger bracket synchronization
+    if (updatedMatch.tournament_id) {
+      this.triggerBracketSync(updatedMatch.tournament_id).catch(error => {
+        console.error('Error triggering bracket sync:', error)
+      })
+    }
+    
+    return updatedMatch
+  }
+
+  /**
+   * Triggers bracket synchronization for a tournament
+   * This method makes an HTTP request to the brackets sync endpoint
+   */
+  private async triggerBracketSync(tournamentId: string): Promise<void> {
+    try {
+      // Make internal HTTP request to sync endpoint
+      const response = await fetch(`http://localhost:3000/brackets/single-elimination/${tournamentId}/sync-from-matches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        console.warn(`Bracket sync request failed with status: ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Error making bracket sync request:', error)
+    }
   }
 
   /**

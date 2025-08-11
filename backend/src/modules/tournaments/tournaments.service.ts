@@ -90,6 +90,7 @@ export class TournamentsService {
   }
 
   async findOne(id: string): Promise<TournamentResponseDto> {
+    console.log(`=== TOURNAMENTS SERVICE: Finding tournament with ID: ${id} ===`);
     const supabase = this.supabaseService.client;
 
     const { data, error } = await supabase
@@ -98,10 +99,17 @@ export class TournamentsService {
       .eq('id', id)
       .single();
 
-    if (error || !data) {
+    if (error) {
+      console.error('Tournament lookup error:', error);
       throw new NotFoundException(`Tournament with ID ${id} not found`);
     }
 
+    if (!data) {
+      console.error('Tournament not found - no data returned');
+      throw new NotFoundException(`Tournament with ID ${id} not found`);
+    }
+
+    console.log('Tournament found successfully:', data.id);
     return this.mapToResponseDto(data);
   }
 
