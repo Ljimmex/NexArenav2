@@ -325,6 +325,58 @@ export class TournamentsService {
     return data || [];
   }
 
+  async updateTeamSeed(tournamentId: string, teamId: string, seed: number, user: any): Promise<{ message: string }> {
+    const supabase = this.supabaseService.client;
+
+    // Check if tournament exists and user has permission
+    const tournament = await this.findOne(tournamentId);
+    const isAdmin = user.role === 'ADMIN';
+    const isOrganizer = tournament.organizer_id === user.id;
+    const isModerator = tournament.moderators?.includes(user.id);
+    
+    if (!isAdmin && !isOrganizer && !isModerator) {
+      throw new ForbiddenException('You are not authorized to update team seeds for this tournament');
+    }
+
+    // Check if team is registered
+    const { data: registration, error: findError } = await supabase
+      .from('tournament_teams')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('team_id', teamId)
+      .single();
+
+    if (findError || !registration) {
+      throw new NotFoundException('Team is not registered for this tournament');
+    }
+
+    // Check if seed is already taken by another team
+    const { data: existingSeed, error: seedError } = await supabase
+      .from('tournament_teams')
+      .select('team_id')
+      .eq('tournament_id', tournamentId)
+      .eq('seed', seed)
+      .neq('team_id', teamId)
+      .single();
+
+    if (!seedError && existingSeed) {
+      throw new BadRequestException(`Seed ${seed} is already assigned to another team`);
+    }
+
+    // Update the seed
+    const { error } = await supabase
+      .from('tournament_teams')
+      .update({ seed })
+      .eq('tournament_id', tournamentId)
+      .eq('team_id', teamId);
+
+    if (error) {
+      throw new BadRequestException(`Failed to update team seed: ${error.message}`);
+    }
+
+    return { message: `Team seed updated to ${seed} successfully` };
+  }
+
   private mapToResponseDto(tournament: any): TournamentResponseDto {
     return {
       id: tournament.id,

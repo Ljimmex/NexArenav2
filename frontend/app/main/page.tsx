@@ -135,15 +135,15 @@ export default function MainPage() {
         setLoading(true)
         const res = await tournamentsAPI.getTournaments({ page: 1, limit: 6 })
         if (res.tournaments?.length) {
-          setPopular((prev) => {
-            // Merge on id; keep our first one as mock-1 if present
-            const merged = res.tournaments.slice(0, 6) as PopularTournament[]
-            if (!merged.find((t) => t.id === "mock-1")) {
-              merged[0] = { ...merged[0], id: "mock-1" }
-            }
-            return merged
-          })
+          setPopular(res.tournaments.slice(0, 6) as PopularTournament[])
+        } else {
+          // Jeśli nie ma turniejów, ustaw pustą tablicę
+          setPopular([])
         }
+      } catch (error) {
+        console.error('Błąd podczas pobierania turniejów:', error)
+        // W przypadku błędu API, ustaw pustą tablicę
+        setPopular([])
       } finally {
         setLoading(false)
       }
@@ -195,11 +195,20 @@ export default function MainPage() {
           {/* Popular tournaments */}
           <SectionHeader title="Popular tournaments" href="/tournaments" />
           <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {popular.map((t) => {
+            {loading ? (
+              <div className="col-span-full text-center py-8">
+                <p className="text-white/60">Ładowanie turniejów...</p>
+              </div>
+            ) : popular.length === 0 ? (
+              <div className="col-span-full text-center py-8">
+                <p className="text-white/60">Brak dostępnych turniejów</p>
+              </div>
+            ) : (
+              popular.map((t) => {
               const gameInfo = getGameInfo(t.game_type || 'CS2')
               const formatInfo = getFormatInfo(t.tournament_type || 'SINGLE_ELIMINATION')
               return (
-                <Link key={t.id} href={`/tournaments/${t.id}`} className="block">
+                <Link key={t.id} href={`/tournaments/${t.id}`} className="block cursor-pointer" prefetch={false}>
                   <article className="group overflow-hidden rounded-2xl border border-white/10 bg-[#0f1317] shadow-sm transition hover:border-cyan-400/30 hover:shadow-[0_10px_40px_-10px_rgba(0,255,255,0.15)]">
                     {/* Banner */}
                     <div className="relative h-40 w-full overflow-hidden">
@@ -208,14 +217,14 @@ export default function MainPage() {
                           src={"/banners/Tournament-card.png"}
                           alt={t.title}
                           fill
-                          className="object-cover transition duration-300 group-hover:scale-[1.02]"
+                          className="object-cover transition duration-300 group-hover:scale-[1.02] pointer-events-none"
                         />
                       ) : (
                         <Image
                           src="/banners/Tournament-card.png"
                           alt="banner"
                           fill
-                          className="object-cover opacity-80"
+                          className="object-cover opacity-80 pointer-events-none"
                         />
                       )}
 
@@ -234,7 +243,7 @@ export default function MainPage() {
                             alt={formatInfo.name}
                             width={12}
                             height={12}
-                            className="h-3 w-3"
+                            className="h-3 w-3 pointer-events-none"
                           />
                           <span>{formatInfo.name}</span>
                         </div>
@@ -257,7 +266,7 @@ export default function MainPage() {
                         <div className="overflow-hidden">
                           <div className="text-[11px] uppercase tracking-wide text-white/50">Game</div>
                           <div className="flex items-center gap-1">
-                            <Image src={gameInfo.icon} alt={gameInfo.name} width={16} height={16} className="h-4 w-4 flex-shrink-0" />
+                            <Image src={gameInfo.icon} alt={gameInfo.name} width={16} height={16} className="h-4 w-4 flex-shrink-0 pointer-events-none" />
                             <span className="text-sm font-semibold text-white/90 truncate">{gameInfo.name}</span>
                           </div>
                         </div>
@@ -277,7 +286,7 @@ export default function MainPage() {
                               alt={t.organizer?.name || "Organizer"}
                               width={24}
                               height={24}
-                              className="h-6 w-6 object-cover"
+                              className="h-6 w-6 object-cover pointer-events-none"
                             />
                           </div>
                           <span className="text-xs text-white/70">Host by</span>
@@ -300,7 +309,7 @@ export default function MainPage() {
                                   alt=""
                                   width={24}
                                   height={24}
-                                  className="h-full w-full rounded-full object-cover"
+                                  className="h-full w-full rounded-full object-cover pointer-events-none"
                                 />
                               </div>
                             ))}
@@ -311,7 +320,7 @@ export default function MainPage() {
                   </article>
                 </Link>
               )
-            })}
+            }))}
           </div>
 
           {/* Explore games */}
@@ -344,7 +353,7 @@ export default function MainPage() {
               const gameInfo = getGameInfo(t.game_type || 'CS2')
               const formatInfo = getFormatInfo(t.tournament_type || 'SINGLE_ELIMINATION')
               return (
-                <Link key={`yg-${t.id}`} href={`/tournaments/${t.id}`} className="block">
+                <Link key={`yg-${t.id}`} href={`/tournaments/${t.id}`} className="block cursor-pointer" prefetch={false}>
                   <article className="group overflow-hidden rounded-2xl border border-white/10 bg-[#0f1317] shadow-sm transition hover:border-cyan-400/30 hover:shadow-[0_10px_40px_-10px_rgba(0,255,255,0.15)]">
                     <div className="relative h-40 w-full overflow-hidden">
                       {t.banner_url ? (

@@ -3,6 +3,7 @@ import type React from "react"
 export type SimpleMatch = {
   id: string
   round: number
+  status: 'PENDING' | 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'WALKOVER' | 'DISQUALIFIED'
   is_bronze_match?: boolean
 }
 
@@ -35,7 +36,7 @@ interface MatchConnectionLinesProps {
 export const MatchConnectionLines: React.FC<MatchConnectionLinesProps> = ({
   layoutMatches,
   getMatchPosition,
-  lineColor = "#22d3ee",
+  lineColor = "#6b7280",
   lineThickness = 3,
   cornerSize = 14,
   dotSize = 8,

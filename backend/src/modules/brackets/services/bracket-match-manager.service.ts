@@ -65,6 +65,8 @@ export class BracketMatchManagerService {
     if (typeof dto.score1 === 'number') match.score1 = dto.score1;
     if (typeof dto.score2 === 'number') match.score2 = dto.score2;
     if (dto.status) match.status = dto.status;
+    if (typeof (dto as any).best_of === 'number') match.best_of = (dto as any).best_of;
+    if (typeof (dto as any).scheduled_at === 'string') match.scheduled_at = (dto as any).scheduled_at;
 
     const p1 = match.participant1;
     const p2 = match.participant2;

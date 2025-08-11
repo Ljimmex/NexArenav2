@@ -640,7 +640,13 @@ export default function EditTournamentPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="max_teams" className="text-gray-300">Maksymalna liczba drużyn *</Label>
+                      <Label htmlFor="max_teams" className="text-gray-300">
+                        {formData.tournament_type === 'SINGLE_ELIMINATION' && 
+                         Number((formData.format_settings as any)?.single_elimination?.number_of_groups) > 1
+                          ? 'Maksymalna liczba drużyn na grupę *'
+                          : 'Maksymalna liczba drużyn *'
+                        }
+                      </Label>
                       <Input
                         id="max_teams"
                         type="number"
@@ -650,6 +656,12 @@ export default function EditTournamentPage() {
                         className="bg-[#2a2a2a] border-gray-600 text-white"
                         required
                       />
+                      {formData.tournament_type === 'SINGLE_ELIMINATION' && 
+                       Number((formData.format_settings as any)?.single_elimination?.number_of_groups) > 1 && (
+                        <p className="text-xs text-gray-400">
+                          Całkowita liczba drużyn: {formData.max_teams} × {Number((formData.format_settings as any)?.single_elimination?.number_of_groups)} = {(formData.max_teams || 0) * Number((formData.format_settings as any)?.single_elimination?.number_of_groups)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </CardContent>

@@ -287,10 +287,9 @@ export default function TournamentsPage() {
                   const gameInfo = getGameInfo(t.game_type)
                   const formatInfo = getFormatInfo(t.tournament_type)
                   return (
-                    <article
-                      key={t.id}
-                      className="group overflow-hidden rounded-2xl border border-white/10 bg-[#0f1317] shadow-sm transition hover:border-cyan-400/30 hover:shadow-[0_10px_40px_-10px_rgba(0,255,255,0.15)]"
-                    >
+                    <Link key={t.id} href={`/tournaments/${t.id}`} className="block">
+                      <article className="group overflow-hidden rounded-2xl border border-white/10 bg-[#0f1317] shadow-sm transition hover:border-cyan-400/30 hover:shadow-[0_10px_40px_-10px_rgba(0,255,255,0.15)]"
+                      >
                       {/* Banner */}
                       <div className="relative h-40 w-full overflow-hidden">
                         {t.banner_url ? (
@@ -398,7 +397,8 @@ export default function TournamentsPage() {
                           </div>
                         </div>
                       </div>
-                    </article>
+                      </article>
+                    </Link>
                   )
                 })}
               </div>

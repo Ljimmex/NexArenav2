@@ -73,8 +73,13 @@ export class BracketSyncService {
 
       // Handle groups if they exist
       if (bracket.groups && bracket.groups.length > 0) {
-        for (const group of bracket.groups) {
-          await this.processRoundsForMatches(group.rounds, bracket, matchesToCreate, finalMatchId, clearExisting);
+        for (const [groupIndex, group] of bracket.groups.entries()) {
+          const groupNumber = groupIndex + 1; // Groups are numbered starting from 1
+          const groupInfo = {
+            groupId: group.group_id,
+            groupNumber: groupNumber
+          };
+          await this.processRoundsForMatches(group.rounds, bracket, matchesToCreate, finalMatchId, clearExisting, groupInfo);
         }
       } else {
         // Handle regular single elimination bracket
@@ -187,6 +192,21 @@ export class BracketSyncService {
         ? bracketMatch.participant2.id 
         : null;
 
+      // Determine group number if this is a group match
+      let groupNumber: number | undefined;
+      if (bracket.groups && bracket.groups.length > 0) {
+        // Find which group this match belongs to
+        for (const [groupIndex, group] of bracket.groups.entries()) {
+          const matchFound = group.rounds.some(round => 
+            round.matches.some(match => match.id === matchId)
+          );
+          if (matchFound) {
+            groupNumber = groupIndex + 1;
+            break;
+          }
+        }
+      }
+
       const createData = {
         id: matchId,
         tournament_id: tournamentId,
@@ -196,6 +216,7 @@ export class BracketSyncService {
         team2_id,
         match_number: bracketMatch.match_number,
         best_of: bracketMatch.best_of || 1,
+        group_number: groupNumber,
         ...updateData,
       };
 
@@ -231,6 +252,11 @@ export class BracketSyncService {
   }
 
   private determineMatchStage(bracketMatch: BracketMatchDto, bracket: SingleEliminationBracketDto): MatchStage {
+    // If this bracket has groups, all matches are group stage matches
+    if (bracket.groups && bracket.groups.length > 0) {
+      return MatchStage.GROUP;
+    }
+    
     const finalMatchId = this.getFinalMatchId(bracket);
     
     if (bracketMatch.id === finalMatchId) {
@@ -326,6 +352,7 @@ export class BracketSyncService {
     matchesToCreate: CreateMatchDto[],
     finalMatchId: string | undefined,
     skipExistingCheck: boolean = false,
+    groupInfo?: { groupId: string; groupNumber: number }
   ): Promise<void> {
     for (const [roundIndex, round] of rounds.entries()) {
       for (const [matchIndex, bracketMatch] of round.matches.entries()) {
@@ -348,13 +375,18 @@ export class BracketSyncService {
           ? bracketMatch.participant2.id 
           : undefined;
 
-        // Decide correct stage
-        const stage = bracketMatch.id === finalMatchId
-          ? MatchStage.FINAL
-          : (round.is_bronze_round ? MatchStage.THIRD_PLACE : MatchStage.PLAYOFF);
+        // Decide correct stage - if we have group info, it's a group stage match
+        let stage: MatchStage;
+        if (groupInfo) {
+          stage = MatchStage.GROUP;
+        } else {
+          stage = bracketMatch.id === finalMatchId
+            ? MatchStage.FINAL
+            : (round.is_bronze_round ? MatchStage.THIRD_PLACE : MatchStage.PLAYOFF);
+        }
 
         // Generate appropriate notes
-        const notes = this.generateMatchNotes(bracketMatch, stage, round, rounds, roundIndex, matchIndex);
+        const notes = this.generateMatchNotes(bracketMatch, stage, round, rounds, roundIndex, matchIndex, groupInfo);
 
         const matchDto: CreateMatchDto = {
           tournament_id: bracket.tournament_id,
@@ -366,6 +398,7 @@ export class BracketSyncService {
           best_of: bracketMatch.best_of || 1, // Use best_of from bracket or default to 1
           notes,
           match_number: bracketMatch.match_number, // Use match_number from bracket
+          group_number: groupInfo?.groupNumber, // Add group_number for group matches
         };
 
         matchesToCreate.push(matchDto);
@@ -380,8 +413,39 @@ export class BracketSyncService {
     rounds: BracketRoundDto[],
     roundIndex: number,
     matchIndex: number,
+    groupInfo?: { groupId: string; groupNumber: number }
   ): string | undefined {
     const matchNumber = matchIndex + 1;
+    
+    // Handle group stage matches
+    if (stage === MatchStage.GROUP && groupInfo) {
+      const groupLetter = groupInfo.groupId.split('-')[1]?.toUpperCase() || `${groupInfo.groupNumber}`;
+      
+      if (bracketMatch.is_bronze_match) {
+        return `Group ${groupLetter} - Bronze Medal Match`;
+      } else {
+        // For group matches, generate descriptive round names
+        const totalRounds = rounds.filter(r => !r.is_bronze_round).length;
+        const roundFromEnd = totalRounds - roundIndex;
+        
+        let roundName: string;
+        if (roundFromEnd === 1) {
+          roundName = 'Final';
+        } else if (roundFromEnd === 2) {
+          roundName = 'Semifinal';
+        } else if (roundFromEnd === 3) {
+          roundName = 'Quarterfinal';
+        } else if (roundFromEnd === 4) {
+          roundName = 'Round of 16';
+        } else if (roundFromEnd === 5) {
+          roundName = 'Round of 32';
+        } else {
+          roundName = `Round ${bracketMatch.round}`;
+        }
+        
+        return `Group ${groupLetter} - ${roundName} Match ${matchNumber}`;
+      }
+    }
     
     if (bracketMatch.is_bronze_match) {
       return 'Bronze Medal Match';

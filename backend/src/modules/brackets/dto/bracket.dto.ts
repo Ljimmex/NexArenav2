@@ -367,4 +367,14 @@ export class UpdateBracketMatchRequestDto extends UpdateBracketMatchDto {
   @IsOptional()
   @IsBoolean()
   force_update?: boolean;
+
+  @ApiPropertyOptional({ description: 'Best of X games' })
+  @IsOptional()
+  @IsNumber()
+  best_of?: number;
+
+  @ApiPropertyOptional({ description: 'Scheduled start time' })
+  @IsOptional()
+  @IsString()
+  scheduled_at?: string;
 }

@@ -38,9 +38,10 @@ interface BracketDisplayProps {
   onMatchClick?: (match: Match) => void
   selectedGroup?: string | null
   groups?: Array<{ group_id: string; group_name: string }>
+  onEditClick?: (match: Match) => void
 }
 
-export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGroup, groups }: BracketDisplayProps) {
+export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGroup, groups, onEditClick }: BracketDisplayProps) {
 
   // Function to format date according to user requirements
   const formatMatchDate = (dateString: string): string => {
@@ -109,17 +110,24 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
 
   // Helper function to extract group ID from match ID
   const getGroupIdFromMatchId = (matchId: string): string | null => {
+    console.log('🔍 Analyzing match ID:', matchId)
+    
     // Support new format: "group-a-...", "group-b-...", etc.
     const prefixed = matchId.match(/^(group-[a-z])/i)
     if (prefixed) {
+      console.log('✅ Found prefixed format:', prefixed[1].toLowerCase())
       return prefixed[1].toLowerCase()
     }
 
     // Fallback for legacy format: "A-..." -> map to "group-a"
     const parts = matchId.split('-')
     if (parts.length >= 2 && /^[A-Z]$/.test(parts[0])) {
-      return `group-${parts[0].toLowerCase()}`
+      const groupId = `group-${parts[0].toLowerCase()}`
+      console.log('✅ Found legacy format, mapped to:', groupId)
+      return groupId
     }
+    
+    console.log('❌ No group ID found in match ID:', matchId)
     return null
   }
 
@@ -127,61 +135,20 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
 
 
 
-  // If selectedGroup is null (showing all groups), group by groups first, then by rounds
-  // Otherwise, group only by rounds as before
+  // Group matches by rounds for single group view
   let matchesByRound: { [round: number]: Match[] } = {}
-  let matchesByGroup: { [groupId: string]: { [round: number]: Match[] } } = {}
-  let bronzeMatchesByGroup: { [groupId: string]: Match[] } = {}
   
-  if ((!selectedGroup || selectedGroup === '' || selectedGroup === 'all') && groups && groups.length > 0) {
-    // Group matches by group first, then by round within each group
-    regularMatches.forEach(match => {
-      const groupId = getGroupIdFromMatchId(match.id)
-      if (groupId) {
-        if (!matchesByGroup[groupId]) {
-          matchesByGroup[groupId] = {}
-        }
-        if (!matchesByGroup[groupId][match.round]) {
-          matchesByGroup[groupId][match.round] = []
-        }
-        matchesByGroup[groupId][match.round].push(match)
-      }
-    })
+  regularMatches.forEach(match => {
+    if (!matchesByRound[match.round]) {
+      matchesByRound[match.round] = []
+    }
+    matchesByRound[match.round].push(match)
+  })
 
-    // Group bronze matches by group
-    bronzeMatches.forEach(match => {
-      const groupId = getGroupIdFromMatchId(match.id)
-      if (groupId) {
-        if (!bronzeMatchesByGroup[groupId]) {
-          bronzeMatchesByGroup[groupId] = []
-        }
-        bronzeMatchesByGroup[groupId].push(match)
-      }
-    })
-
-    // Sort matches within each group and round
-    Object.keys(matchesByGroup).forEach(groupId => {
-      Object.keys(matchesByGroup[groupId]).forEach(round => {
-        matchesByGroup[groupId][parseInt(round)].sort((a, b) => a.position_in_round - b.position_in_round)
-      })
-    })
-
-
-
-  } else {
-    // Original logic for single group or specific group view
-    regularMatches.forEach(match => {
-      if (!matchesByRound[match.round]) {
-        matchesByRound[match.round] = []
-      }
-      matchesByRound[match.round].push(match)
-    })
-
-    // Sort matches within each round by position
-    Object.keys(matchesByRound).forEach(round => {
-      matchesByRound[parseInt(round)].sort((a, b) => a.position_in_round - b.position_in_round)
-    })
-  }
+  // Sort matches within each round by position
+  Object.keys(matchesByRound).forEach(round => {
+    matchesByRound[parseInt(round)].sort((a, b) => a.position_in_round - b.position_in_round)
+  })
 
   // Calculate total rounds for naming
   const totalRounds = Math.max(...regularMatches.map(m => m.round))
@@ -221,7 +188,18 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
   
   const bracketHeight = calculateBracketHeight();
 
-  // Improved function to calculate match position with proper pyramid effect
+  // Calculate the center offset for the bracket
+  const calculateCenterOffset = () => {
+    // Calculate the total width of the bracket
+    const totalBracketWidth = maxRound * 660 + 1000; // 400px per round + 320px for match width
+    // Calculate the offset to center the bracket
+    const centerOffset = Math.max(0, (bracketWidth - totalBracketWidth) / 1);
+    return centerOffset;
+  };
+
+  const centerOffset = calculateCenterOffset();
+
+  // Improved function to calculate match position with proper pyramid effect and centering
   const getMatchPosition = (match: Match): { left: string; top: string } => {
     // For third place match, position it below the final
     if (match.is_bronze_match) {
@@ -245,11 +223,11 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
     const matchIndex = matchesInRound.findIndex(m => m.id === match.id);
     
     // Calculate spacing based on the round
-    const roundSpacing = 520; // Increased horizontal spacing between rounds from 400 to 520
+    const roundSpacing = 400; // Horizontal spacing between rounds
     const verticalSpacing = 200; // Base vertical spacing between matches
     
-    // Align with round labels by adjusting the left position to match Round Labels (-160)
-    const leftPosition = match.round * roundSpacing +80;
+    // Apply center offset to position the bracket in the center
+    const leftPosition = match.round * roundSpacing + 80 + centerOffset;
     
     // For first round (round 1), use fixed spacing
     if (match.round === 1) {
@@ -402,310 +380,9 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
         }}
       >
         <div className="space-y-8">
-          {(!selectedGroup || selectedGroup === '' || selectedGroup === 'all') && groups && groups.length > 0 ? (
-            // Show all matches grouped by groups
-            <>
-              {groups
-                .sort((a, b) => a.group_id.localeCompare(b.group_id))
-                .map(group => {
-                  // Get all matches for this group using the improved logic
-                  const groupMatches = matchesByGroup[group.group_id] || {}
-                  const groupBronzeMatches = bronzeMatchesByGroup[group.group_id] || []
-                  
-                  // Get all rounds for this group
-                  const groupRounds = Object.keys(groupMatches).map(Number).sort((a, b) => a - b)
-                  const hasMatches = groupRounds.length > 0 || groupBronzeMatches.length > 0
-
-                  return (
-                    <div key={group.group_id} className="space-y-6">
-                      {/* Group header */}
-                      <div className="border-b border-gray-600 pb-2">
-                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                          <Trophy className="h-5 w-5 text-blue-400" />
-                          Grupa {group.group_name}
-                        </h2>
-                      </div>
-                      
-                      {/* Group matches */}
-                      {hasMatches ? (
-                        <>
-                          {/* Regular matches by rounds */}
-                          {groupRounds.map(round => (
-                            <div key={`${group.group_id}-round-${round}`} className="space-y-4">
-                              <div className="bg-gray-800 px-6 py-3 flex items-center justify-between rounded-xl mb-6 min-w-[380px]">
-                                <span className="text-lg font-semibold text-white">
-                                  {getRoundName(round, totalRounds)}
-                                </span>
-                                <span className="text-sm text-gray-400">
-                                  {groupMatches[round].length} {groupMatches[round].length === 1 ? 'Match' : 'Matches'}
-                                </span>
-                              </div>
-                              <div className="flex gap-24 overflow-x-auto pb-4">
-                                <div className="flex-shrink-0 min-w-[450px]">
-                                  <div className="space-y-8">
-                                    {groupMatches[round]
-                                      .sort((a, b) => a.position_in_round - b.position_in_round)
-                                      .map(match => (
-                                  <div
-                           key={match.id}
-                           className={`space-y-3 transition-all duration-200 min-w-[380px] ${
-                             onMatchClick ? 'cursor-pointer' : ''
-                           }`}
-                           onClick={() => onMatchClick?.(match)}
-                         >
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-2">
-                                        <Badge className={`text-xs ${getStatusColor(match.status)}`}>
-                                          {getStatusText(match.status)}
-                                        </Badge>
-                                        <span className="text-xs text-gray-400">
-                                          Match #{match.match_number}
-                                        </span>
-                                        {match.best_of && (
-                                          <span className="text-xs text-gray-400">
-                                            BO{match.best_of}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {match.scheduled_at && (
-                                        <div className="text-xs text-gray-400">
-                                          {formatMatchDate(match.scheduled_at)}
-                                        </div>
-                                      )}
-                                    </div>
-                                    
-                                    <div className="space-y-1">
-                                      {/* Participant 1 */}
-                                      <div className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 ${
-                                        match.winner?.id === match.participant1.id 
-                                          ? 'bg-green-500/20 border border-green-500/30' 
-                                          : 'bg-gray-800/50 border border-gray-700/50'
-                                      } ${onMatchClick ? 'hover:bg-gray-700/70 hover:border-gray-600/70' : ''}`}>
-                                        <div className="flex items-center gap-3">
-                                          {/* Logo placeholder */}
-                                          <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden">
-                                            {match.participant1.logo_url ? (
-                                              <img 
-                                                src={match.participant1.logo_url} 
-                                                alt={match.participant1.name} 
-                                                className="w-full h-full object-cover"
-                                              />
-                                            ) : (
-                                              <span className="text-xs font-bold text-gray-300">
-                                                {match.participant1.name?.charAt(0) || 'T'}
-                                              </span>
-                                            )}
-                                          </div>
-                                          <div className="flex flex-col">
-                                            <span className="text-white font-medium text-sm">
-                                              {match.participant1.name || 'TBD'}
-                                            </span>
-                                            {match.participant1.seed && (
-                                              <span className="text-xs text-gray-400">
-                                                Seed #{match.participant1.seed}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                        {match.score1 !== undefined && (
-                                          <span className="text-white font-bold text-lg">
-                                            {match.score1}
-                                          </span>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Participant 2 */}
-                                      <div className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 ${
-                                        match.winner?.id === match.participant2.id 
-                                          ? 'bg-green-500/20 border border-green-500/30' 
-                                          : 'bg-gray-800/50 border border-gray-700/50'
-                                      } ${onMatchClick ? 'hover:bg-gray-700/70 hover:border-gray-600/70' : ''}`}>
-                                        <div className="flex items-center gap-3">
-                                          {/* Logo placeholder */}
-                                          <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden">
-                                            {match.participant2.logo_url ? (
-                                              <img 
-                                                src={match.participant2.logo_url} 
-                                                alt={match.participant2.name} 
-                                                className="w-full h-full object-cover"
-                                              />
-                                            ) : (
-                                              <span className="text-xs font-bold text-gray-300">
-                                                {match.participant2.name?.charAt(0) || 'T'}
-                                              </span>
-                                            )}
-                                          </div>
-                                          <div className="flex flex-col">
-                                            <span className="text-white font-medium text-sm">
-                                              {match.participant2.name || 'TBD'}
-                                            </span>
-                                            {match.participant2.seed && (
-                                              <span className="text-xs text-gray-400">
-                                                Seed #{match.participant2.seed}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                        {match.score2 !== undefined && (
-                                          <span className="text-white font-bold text-lg">
-                                            {match.score2}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                      ))}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                          
-                          {/* Bronze matches for this group */}
-                          {groupBronzeMatches.length > 0 && (
-                            <div className="space-y-4">
-                              <div className="bg-gray-800 px-6 py-3 flex items-center justify-between rounded-xl mb-6 min-w-[380px]">
-                                <span className="text-lg font-semibold text-white">
-                                  Mecz o 3. miejsce
-                                </span>
-                                <span className="text-sm text-gray-400">
-                                  {groupBronzeMatches.length} {groupBronzeMatches.length === 1 ? 'Match' : 'Matches'}
-                                </span>
-                              </div>
-                              <div className="flex gap-24 overflow-x-auto pb-4">
-                                <div className="flex-shrink-0 min-w-[450px]">
-                                  <div className="space-y-8">
-                                    {groupBronzeMatches
-                                      .sort((a, b) => a.position_in_round - b.position_in_round)
-                                      .map(match => (
-                                  <div 
-                                  key={match.id} 
-                                  className={`space-y-3 transition-all duration-200 min-w-[380px] ${
-                                    onMatchClick ? 'cursor-pointer' : ''
-                                  }`}
-                                  onClick={() => onMatchClick?.(match)}
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <Badge className={`text-xs ${getStatusColor(match.status)}`}>
-                                        {getStatusText(match.status)}
-                                      </Badge>
-                                      <span className="text-xs text-gray-400">
-                                        Match #{match.match_number}
-                                      </span>
-                                      {match.best_of && (
-                                        <span className="text-xs text-gray-400">
-                                          BO{match.best_of}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {match.scheduled_at && (
-                                      <div className="text-xs text-gray-400">
-                                        {formatMatchDate(match.scheduled_at)}
-                                      </div>
-                                    )}
-                                  </div>
-                                  
-                                  <div className="space-y-1">
-                                    {/* Participant 1 */}
-                                    <div className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 ${
-                                      match.winner?.id === match.participant1.id 
-                                        ? 'bg-orange-500/20 border border-orange-500/30' 
-                                        : 'bg-gray-800/50 border border-gray-700/50'
-                                    } ${onMatchClick ? 'hover:bg-gray-700/70 hover:border-gray-600/70' : ''}`}>
-                                      <div className="flex items-center gap-3">
-                                        {/* Logo placeholder */}
-                                        <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden">
-                                          {match.participant1.logo_url ? (
-                                            <img 
-                                              src={match.participant1.logo_url} 
-                                              alt={match.participant1.name} 
-                                              className="w-full h-full object-cover"
-                                            />
-                                          ) : (
-                                            <span className="text-xs font-bold text-gray-300">
-                                              {match.participant1.name?.charAt(0) || 'T'}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <span className="text-white font-medium text-sm">
-                                            {match.participant1.name || 'TBD'}
-                                          </span>
-                                          {match.participant1.seed && (
-                                            <span className="text-xs text-gray-400">
-                                              Seed #{match.participant1.seed}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      {match.score1 !== undefined && (
-                                        <span className="text-white font-bold text-lg">
-                                          {match.score1}
-                                        </span>
-                                      )}
-                                    </div>
-                                    
-                                    {/* Participant 2 */}
-                                    <div className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 ${
-                                      match.winner?.id === match.participant2.id 
-                                        ? 'bg-orange-500/20 border border-orange-500/30' 
-                                        : 'bg-gray-800/50 border border-gray-700/50'
-                                    } ${onMatchClick ? 'hover:bg-gray-700/70 hover:border-gray-600/70' : ''}`}>
-                                      <div className="flex items-center gap-3">
-                                        {/* Logo placeholder */}
-                                        <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden">
-                                          {match.participant2.logo_url ? (
-                                            <img 
-                                              src={match.participant2.logo_url} 
-                                              alt={match.participant2.name} 
-                                              className="w-full h-full object-cover"
-                                            />
-                                          ) : (
-                                            <span className="text-xs font-bold text-gray-300">
-                                              {match.participant2.name?.charAt(0) || 'T'}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <span className="text-white font-medium text-sm">
-                                            {match.participant2.name || 'TBD'}
-                                          </span>
-                                          {match.participant2.seed && (
-                                            <span className="text-xs text-gray-400">
-                                              Seed #{match.participant2.seed}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      {match.score2 !== undefined && (
-                                        <span className="text-white font-bold text-lg">
-                                          {match.score2}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                                      ))}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="text-center py-8">
-                          <div className="text-gray-400 text-lg">Brak meczów w tej grupie</div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-            </>
-          ) : (
-            // Original view for single group or specific group selection
-            <div className="flex justify-center">
-              <div>
+          {/* Single group bracket view with improved centering */}
+          <div className="flex justify-center">
+            <div>
                 {/* Round labels */}
                 <div 
                   className="relative mb-4"
@@ -721,7 +398,7 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
                       key={round}
                       className="absolute"
                       style={{
-                        left: `${round * 520 +80}px`, // Updated from 400 to 520
+                        left: `${round * 400 + 80 + centerOffset}px`, // Apply center offset to round labels
                         top: '0px',
                         width: '320px'
                       }}
@@ -750,7 +427,7 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
                 {/* Connection Lines */}
                 <MatchConnectionLines
                   layoutMatches={regularMatches}
-                  getMatchPosition={getMatchPosition}
+                  getMatchPosition={(match) => getMatchPosition(match as Match)}
                 />
                 
                 {/* Render all matches with absolute positioning */}
@@ -797,7 +474,7 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
                           {/* Participant 1 */}
                           <div className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 ${
                             match.winner?.id === match.participant1.id 
-                              ? 'bg-green-500/20 border border-green-500/30' 
+                              ? 'bg-cyan-500/20 border border-cyan-500/30' 
                               : 'bg-gray-800/50 border border-gray-700/50'
                           } ${onMatchClick ? 'hover:bg-gray-700/70 hover:border-gray-600/70' : ''}`}>
                             <div className="flex items-center gap-3">
@@ -826,17 +503,31 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
                                 )}
                               </div>
                             </div>
-                            {match.score1 !== undefined && (
-                              <span className="text-white font-bold text-lg">
-                                {match.score1}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {match.score1 !== undefined && (
+                                <span className="text-white font-bold text-lg">
+                                  {match.score1}
+                                </span>
+                              )}
+                              {onEditClick && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onEditClick(match); }}
+                                  className="ml-2 p-1.5 rounded-md bg-gray-700/70 hover:bg-gray-600 border border-gray-600 text-gray-300 hover:text-white transition"
+                                  aria-label="Edytuj mecz"
+                                  title="Edytuj mecz"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
                           </div>
                           
                           {/* Participant 2 */}
                           <div className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 ${
                             match.winner?.id === match.participant2.id 
-                              ? 'bg-green-500/20 border border-green-500/30' 
+                              ? 'bg-cyan-500/20 border border-cyan-500/30' 
                               : 'bg-gray-800/50 border border-gray-700/50'
                           } ${onMatchClick ? 'hover:bg-gray-700/70 hover:border-gray-600/70' : ''}`}>
                             <div className="flex items-center gap-3">
@@ -865,11 +556,25 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
                                 )}
                               </div>
                             </div>
-                            {match.score2 !== undefined && (
-                              <span className="text-white font-bold text-lg">
-                                {match.score2}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {match.score2 !== undefined && (
+                                <span className="text-white font-bold text-lg">
+                                  {match.score2}
+                                </span>
+                              )}
+                              {onEditClick && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onEditClick(match); }}
+                                  className="ml-2 p-1.5 rounded-md bg-gray-700/70 hover:bg-gray-600 border border-gray-600 text-gray-300 hover:text-white transition"
+                                  aria-label="Edytuj mecz"
+                                  title="Edytuj mecz"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1011,7 +716,6 @@ export function BracketDisplay({ bracketData, loading, onMatchClick, selectedGro
               )}
               </div>
             </div>
-          )}
         </div>
       </div>
     </div>

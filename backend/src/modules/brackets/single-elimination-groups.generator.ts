@@ -194,7 +194,9 @@ export class SingleEliminationGroupsGenerator {
     const allMatches: BracketMatchDto[] = [];
     
     for (const group of groupsBracket.groups) {
-      for (const round of group.bracket.rounds) {
+      const rounds = (group as any).rounds || (group as any).bracket?.rounds;
+      if (!rounds) continue;
+      for (const round of rounds) {
         for (const match of round.matches) {
           allMatches.push(match);
         }
@@ -210,7 +212,9 @@ export class SingleEliminationGroupsGenerator {
     if (!group) return [];
     
     const matches: BracketMatchDto[] = [];
-    for (const round of group.bracket.rounds) {
+    const rounds = (group as any).rounds || (group as any).bracket?.rounds;
+    if (!rounds) return matches;
+    for (const round of rounds) {
       for (const match of round.matches) {
         matches.push(match);
       }
@@ -219,10 +223,14 @@ export class SingleEliminationGroupsGenerator {
     return matches;
   }
 
-  // Helper method to find a specific match across all groups
-  public static findMatch(groupsBracket: SingleEliminationGroupsBracketDto, matchId: string): { match: BracketMatchDto; group: GroupBracket; round: BracketRoundDto } | null {
+  // Helper method to find a specific match across all groups - updated to work with GroupBracketDto
+  public static findMatch(groupsBracket: any, matchId: string): { match: BracketMatchDto; group: any; round: BracketRoundDto } | null {
     for (const group of groupsBracket.groups) {
-      for (const round of group.bracket.rounds) {
+      // GroupBracketDto has rounds directly, not group.bracket.rounds
+      const rounds = group.rounds || (group.bracket && group.bracket.rounds);
+      if (!rounds) continue;
+      
+      for (const round of rounds) {
         for (const match of round.matches) {
           if (match.id === matchId) {
             return { match, group, round };

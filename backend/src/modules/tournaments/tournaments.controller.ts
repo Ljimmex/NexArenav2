@@ -185,4 +185,24 @@ export class TournamentsController {
   async getRegisteredTeams(@Param('id') tournamentId: string) {
     return this.tournamentsService.getRegisteredTeams(tournamentId);
   }
+
+  @Patch(':id/teams/:teamId/seed')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Update team seed for tournament' })
+  @ApiResponse({ status: 200, description: 'Team seed updated successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Tournament or team not found' })
+  @ApiBearerAuth()
+  async updateTeamSeed(
+    @Param('id', ParseUUIDPipe) tournamentId: string,
+    @Param('teamId', ParseUUIDPipe) teamId: string,
+    @Body('seed', ParseIntPipe) seed: number,
+    @Request() req: any,
+  ): Promise<{ message: string }> {
+    const supabaseUser = req.user;
+    const internalUser = await this.usersService.findBySupabaseId(supabaseUser.id);
+    return this.tournamentsService.updateTeamSeed(tournamentId, teamId, seed, internalUser);
+  }
 }

@@ -393,7 +393,13 @@ export default function CreateTournamentPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="max_teams" className="text-white">Maksymalna liczba drużyn *</Label>
+                  <Label htmlFor="max_teams" className="text-white">
+                    {formData.tournament_type === 'SINGLE_ELIMINATION' && 
+                     Number((formData.format_settings as any)?.single_elimination?.number_of_groups) > 1
+                      ? 'Maksymalna liczba drużyn na grupę *'
+                      : 'Maksymalna liczba drużyn *'
+                    }
+                  </Label>
                   <Input
                     id="max_teams"
                     type="number"
@@ -403,6 +409,12 @@ export default function CreateTournamentPage() {
                     className="bg-[#1a1a1a] border-gray-600 text-white"
                     required
                   />
+                  {formData.tournament_type === 'SINGLE_ELIMINATION' && 
+                   Number((formData.format_settings as any)?.single_elimination?.number_of_groups) > 1 && (
+                    <p className="text-xs text-gray-400">
+                      Całkowita liczba drużyn: {formData.max_teams} × {Number((formData.format_settings as any)?.single_elimination?.number_of_groups)} = {formData.max_teams * Number((formData.format_settings as any)?.single_elimination?.number_of_groups)}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-white">Tryb seedowania</Label>

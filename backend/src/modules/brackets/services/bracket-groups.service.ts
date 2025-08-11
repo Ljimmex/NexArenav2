@@ -22,43 +22,54 @@ export class BracketGroupsService {
     tournamentId: string,
     participants: ParticipantDto[],
     groupCount: number,
+    maxParticipantsPerGroup: number,
     bronzeMatch: boolean = false,
   ): SingleEliminationBracketDto {
-    if (participants.length < 2) {
-      throw new Error('At least 2 participants are required for single elimination');
+    if (maxParticipantsPerGroup < 2) {
+      throw new Error('At least 2 participants per group are required for single elimination');
     }
 
     if (groupCount < 1) {
       throw new Error('At least 1 group is required');
     }
 
-    // Distribute participants across groups
+    // Calculate total expected participants
+    const totalExpectedParticipants = maxParticipantsPerGroup * groupCount;
+    
+    // If we have fewer participants than expected, pad with placeholders
+    const allParticipants = [...participants];
+    while (allParticipants.length < totalExpectedParticipants) {
+      allParticipants.push({
+        id: `placeholder-${allParticipants.length + 1}`,
+        name: `TBD ${allParticipants.length + 1}`,
+        type: ParticipantType.TBD,
+      });
+    }
+
+    // Distribute participants across groups (exactly maxParticipantsPerGroup per group)
     const groups: GroupBracketDto[] = [];
-    const participantsPerGroup = Math.ceil(participants.length / groupCount);
     
     for (let i = 0; i < groupCount; i++) {
-      const startIndex = i * participantsPerGroup;
-      const endIndex = Math.min(startIndex + participantsPerGroup, participants.length);
-      const groupParticipants = participants.slice(startIndex, endIndex);
+      const startIndex = i * maxParticipantsPerGroup;
+      const endIndex = startIndex + maxParticipantsPerGroup;
+      const groupParticipants = allParticipants.slice(startIndex, endIndex);
       
-      if (groupParticipants.length > 0) {
-        // Generate single elimination bracket for this group
-        const groupBracket = this.singleEliminationGenerator.generateSingleEliminationBracket(
-          tournamentId,
-          groupParticipants,
-          bronzeMatch,
-        );
+      // Generate single elimination bracket for this group
+      const groupBracket = this.singleEliminationGenerator.generateSingleEliminationBracket(
+        tournamentId,
+        groupParticipants,
+        bronzeMatch,
+      );
 
-        const group: GroupBracketDto = {
-          group_id: `group-${i + 1}`,
-          group_name: `Group ${String.fromCharCode(65 + i)}`, // A, B, C, etc.
-          total_rounds: groupBracket.total_rounds,
-          bronze_match: bronzeMatch,
-          rounds: groupBracket.rounds,
-        };
+      const group: GroupBracketDto = {
+        group_id: `group-${i + 1}`,
+        group_name: `Group ${String.fromCharCode(65 + i)}`, // A, B, C, etc.
+        total_rounds: groupBracket.total_rounds,
+        bronze_match: bronzeMatch,
+        rounds: groupBracket.rounds,
+      };
 
-        groups.push(group);
-      }
+      groups.push(group);
     }
 
     // Calculate total rounds (max across all groups)
@@ -67,7 +78,7 @@ export class BracketGroupsService {
     return {
       tournament_id: tournamentId,
       type: BracketType.SINGLE_ELIMINATION,
-      total_participants: participants.length,
+      total_participants: totalExpectedParticipants, // Use total expected participants (maxParticipantsPerGroup * groupCount)
       total_rounds: totalRounds,
       bronze_match: bronzeMatch,
       rounds: [], // Empty for grouped brackets

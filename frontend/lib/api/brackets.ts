@@ -14,6 +14,19 @@ export interface GroupInfo {
   has_bronze_match: boolean
 }
 
+export interface UpdateBracketMatchPayload {
+  tournament_id: string
+  match_id: string
+  winner_id?: string
+  score1?: number
+  score2?: number
+  status: 'PENDING' | 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'WALKOVER' | 'DISQUALIFIED'
+  disqualified_participant_id?: string
+  force_update?: boolean
+  best_of?: number
+  scheduled_at?: string
+}
+
 export const bracketsAPI = {
   async generateSingleElimination(payload: GenerateSingleEliminationPayload): Promise<unknown> {
     return apiClient.post<unknown>('/brackets/single-elimination/generate', payload)
@@ -40,5 +53,13 @@ export const bracketsAPI = {
 
   async syncFromMatches(tournamentId: string): Promise<{ message: string; matchesUpdated: number }> {
     return apiClient.post<{ message: string; matchesUpdated: number }>(`/brackets/single-elimination/${tournamentId}/sync-from-matches`)
+  },
+
+  async updateMatch(payload: UpdateBracketMatchPayload): Promise<unknown> {
+    return apiClient.post<unknown>('/brackets/single-elimination/update-match', payload)
+  },
+
+  async resetMatch(tournamentId: string, matchId: string): Promise<unknown> {
+    return apiClient.post<unknown>(`/brackets/single-elimination/reset/${tournamentId}/${matchId}`)
   },
 }
