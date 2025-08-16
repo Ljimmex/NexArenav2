@@ -16,7 +16,17 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string, username: string) => Promise<void>
   signInWithProvider: (provider: 'google' | 'discord' | 'github') => Promise<void>
   signOut: () => Promise<void>
-  updateProfile: (data: { username?: string; display_name?: string; bio?: string; avatar_url?: string; banner_url?: string }) => Promise<void>
+  updateProfile: (data: { 
+    username?: string; 
+    display_name?: string; 
+    bio?: string; 
+    avatar_url?: string; 
+    banner_url?: string;
+    country?: string;
+    city?: string;
+    date_of_birth?: string;
+    settings?: { timezone?: string };
+  }) => Promise<void>
   refreshUserData: () => Promise<void>
   refreshToken: () => Promise<boolean>
 }
@@ -263,7 +273,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const updateProfile = async (data: { username?: string; display_name?: string; bio?: string; avatar_url?: string; banner_url?: string }) => {
+  const updateProfile = async (data: { 
+    username?: string; 
+    display_name?: string; 
+    bio?: string; 
+    avatar_url?: string; 
+    banner_url?: string;
+    country?: string;
+    city?: string;
+    date_of_birth?: string;
+    settings?: { timezone?: string };
+  }) => {
     try {
       setLoading(true)
       
@@ -271,9 +291,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Brak danych użytkownika')
       }
 
+      // Separate settings from main data if provided
+      const { settings, ...profileData } = data
+      
       // Update the user profile via our API
-      const updatedUser = await UserService.updateUserProfile(customUser.id, data)
-      setCustomUser(updatedUser)
+      let updatedUser = await UserService.updateUserProfile(customUser.id, profileData)
+      
+      // Update settings separately if provided
+      if (settings && typeof settings.timezone === 'string' && settings.timezone.length > 0) {
+        try {
+          // Pass timezone directly, not as nested object
+          await UserService.updateUserSettings(customUser.id, { timezone: settings.timezone })
+          // Refresh user data to get updated settings
+          await refreshUserData()
+        } catch (err: any) {
+          console.error('Failed to update user settings:', err)
+          // Don't block profile update on settings error
+          toast.error('Nie udało się zaktualizować ustawień użytkownika (strefa czasowa). Skontaktuj się z administratorem.')
+          setCustomUser(updatedUser)
+        }
+      } else {
+        setCustomUser(updatedUser)
+      }
       
       toast.success('Profil zaktualizowany!')
     } catch (error) {

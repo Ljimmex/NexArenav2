@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { User, Mail, Calendar, Shield, Edit, Trophy, Target, Users, Star } from 'lucide-react'
 import toast from 'react-hot-toast'
+import Link from 'next/link'
 
 
 // Dostępne avatary
@@ -271,9 +272,11 @@ export function UserProfile() {
                 </p>
               </div>
               
-              <Button onClick={() => setIsEditing(true)}>
-                Edytuj profil
-              </Button>
+              <Link href="/profile/edit">
+                <Button>
+                  Edytuj profil
+                </Button>
+              </Link>
             </div>
           )}
         </CardContent>

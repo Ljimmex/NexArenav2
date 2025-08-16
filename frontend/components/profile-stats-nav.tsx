@@ -5,9 +5,40 @@ import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Clock, Trophy, Target, Users, Gamepad2, Star, TrendingUp } from 'lucide-react'
+import { useAuth } from '@/lib/auth/auth-context'
 
 export function ProfileStatsNav() {
   const [activeTab, setActiveTab] = useState('overview')
+  const { customUser } = useAuth()
+
+  const countryCodeToFlagEmoji = (code?: string) => {
+    if (!code) return ''
+    const upper = code.trim().toUpperCase()
+    if (upper.length !== 2) return ''
+    const OFFSET = 127397
+    return String.fromCodePoint(...Array.from(upper).map(c => c.charCodeAt(0) + OFFSET))
+  }
+
+  const getCountryName = (code?: string) => {
+    if (!code) return undefined
+    try {
+      // Prefer English names; could be enhanced with user settings later
+      const display = new Intl.DisplayNames(['en'], { type: 'region' })
+      return display.of(code.toUpperCase()) || code.toUpperCase()
+    } catch {
+      return code.toUpperCase()
+    }
+  }
+
+  const getLanguageName = (lang?: string) => {
+    if (!lang) return undefined
+    try {
+      const display = new Intl.DisplayNames(['en'], { type: 'language' })
+      return display.of(lang) || lang
+    } catch {
+      return lang
+    }
+  }
 
   const lastMatches = [
     {
@@ -53,7 +84,7 @@ export function ProfileStatsNav() {
   ]
 
   return (
-    <div className="bg-gray-900 pt-20">
+    <div className="bg-[#0a0f14] pt-20">
       {/* Navigation Section - Below header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="bg-gray-800/95 backdrop-blur-sm rounded-lg border border-gray-700/50 p-4">
@@ -231,25 +262,31 @@ export function ProfileStatsNav() {
                     {/* Nationality */}
                     <div>
                       <h4 className="text-sm font-semibold text-white mb-2">Nationality</h4>
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-3 bg-white border-t border-red-500 border-b border-red-500 relative">
-                          <div className="absolute top-0 left-0 w-full h-1/2 bg-white"></div>
-                          <div className="absolute bottom-0 left-0 w-full h-1/2 bg-red-500"></div>
+                      {customUser?.country ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-base" aria-label={getCountryName(customUser.country)}>
+                            {countryCodeToFlagEmoji(customUser.country)}
+                          </span>
+                          <span className="text-sm text-gray-300">{getCountryName(customUser.country)}</span>
                         </div>
-                        <span className="text-sm text-gray-300">Poland</span>
-                      </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">Not specified</span>
+                      )}
                     </div>
 
                     {/* Languages */}
                     <div>
                       <h4 className="text-sm font-semibold text-white mb-2">Languages</h4>
                       <div className="flex gap-2">
-                        <Badge variant="secondary" className="bg-blue-600/20 text-blue-400 border-blue-600/30">
-                          Polish
-                        </Badge>
-                        <Badge variant="secondary" className="bg-blue-600/20 text-blue-400 border-blue-600/30">
-                          English
-                        </Badge>
+                        {(() => {
+                          const language = customUser?.settings?.language
+                          const name = getLanguageName(language || 'en')
+                          return (
+                            <Badge variant="secondary" className="bg-blue-600/20 text-blue-400 border-blue-600/30">
+                              {name}
+                            </Badge>
+                          )
+                        })()}
                       </div>
                     </div>
 

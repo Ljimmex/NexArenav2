@@ -1,63 +1,32 @@
 'use client'
 
-import { useState } from 'react'
 import Image from 'next/image'
 import { useAuth } from '@/lib/auth/auth-context'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Settings, Edit3, Camera, UserPlus, MoreHorizontal, Shield, Flag, MessageCircle } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Settings, UserPlus, MoreHorizontal, Shield, Flag, MessageCircle } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import toast from 'react-hot-toast'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faDiscord, faTwitter, faSteam } from '@fortawesome/free-brands-svg-icons'
-
-// Dostępne banery
-const availableBanners = [
-  '/banners/ProfilBaner.png',
-  '/banners/ProfilBaner2.png',
-]
+import Link from 'next/link'
 
 interface ProfileHeaderProps {
   profileUserId?: string // ID of the profile being viewed
 }
 
 export function ProfileHeader({ profileUserId }: ProfileHeaderProps) {
-  const { customUser, updateProfile, loading } = useAuth()
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [selectedBanner, setSelectedBanner] = useState(
-    customUser?.banner_url || availableBanners[0]
-  )
+  const { customUser } = useAuth()
   
   // Check if this is the current user's profile
   // If no profileUserId is provided, assume it's the current user's profile (for /profile page)
   // If profileUserId is provided, compare it with current user's ID
   const isOwnProfile = profileUserId ? customUser?.id === profileUserId : true
 
-  const handleBannerChange = async (bannerUrl: string) => {
-    try {
-      await updateProfile({ banner_url: bannerUrl })
-      setSelectedBanner(bannerUrl)
-      setIsSettingsOpen(false)
-      toast.success('Banner został zaktualizowany')
-    } catch (error) {
-      toast.error('Błąd podczas aktualizacji banera')
-    }
-  }
-
-  const currentBanner = customUser?.banner_url || availableBanners[0]
+  const currentBanner = customUser?.banner_url || '/banners/ProfilBaner.png'
 
   return (
     <div className="relative w-full">
@@ -76,75 +45,6 @@ export function ProfileHeader({ profileUserId }: ProfileHeaderProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         
         {/* Settings button - only show for own profile */}
-        {isOwnProfile && (
-          <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-            <DialogTrigger asChild>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white border-white/20"
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Ustawienia banera
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Camera className="h-5 w-5" />
-                  Wybierz banner profilu
-                </DialogTitle>
-                <DialogDescription>
-                  Wybierz jeden z dostępnych banerów dla swojego profilu
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                {availableBanners.map((bannerUrl, index) => (
-                  <Card 
-                    key={index}
-                    className={`cursor-pointer transition-all hover:ring-2 hover:ring-blue-500 ${
-                      selectedBanner === bannerUrl ? 'ring-2 ring-blue-500' : ''
-                    }`}
-                    onClick={() => setSelectedBanner(bannerUrl)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="relative h-20 w-full overflow-hidden rounded-md">
-                        <Image
-                          src={bannerUrl}
-                          alt={`Banner ${index + 1}`}
-                          fill
-                          className="object-cover object-center transition-transform hover:scale-105"
-                          sizes="(max-width: 768px) 100vw, 400px"
-                        />
-                      </div>
-                      <p className="text-sm text-center mt-2 text-gray-600">
-                        Banner {index + 1}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-                
-                <div className="flex gap-2 pt-4">
-                  <Button 
-                    onClick={() => handleBannerChange(selectedBanner)}
-                    disabled={loading || selectedBanner === currentBanner}
-                    className="flex-1"
-                  >
-                    {loading ? 'Zapisywanie...' : 'Zapisz banner'}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsSettingsOpen(false)}
-                    className="flex-1"
-                  >
-                    Anuluj
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
 
       {/* Profile Info Overlay - positioned lower */}
@@ -197,9 +97,11 @@ export function ProfileHeader({ profileUserId }: ProfileHeaderProps) {
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {isOwnProfile ? (
                 <>
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm">
-                    <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">Settings</span>
+                  <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm">
+                    <Link href="/profile/edit">
+                      <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                      <span className="hidden sm:inline">Edytuj profil</span>
+                    </Link>
                   </Button>
                 </>
               ) : (
@@ -241,7 +143,9 @@ export function ProfileHeader({ profileUserId }: ProfileHeaderProps) {
               <div className="flex-1">
                 <h3 className="text-sm font-semibold text-white mb-2">About Me</h3>
                 <p className="text-xs text-gray-300 leading-relaxed max-w-md">
-                  Hello I am a UI/UX designer, I have 4 years of experience in website and app design.
+                  {customUser?.bio && customUser.bio.trim().length > 0
+                    ? customUser.bio
+                    : 'No bio yet.'}
                 </p>
               </div>
               

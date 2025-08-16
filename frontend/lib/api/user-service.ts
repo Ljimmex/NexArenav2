@@ -9,10 +9,20 @@ export interface User {
   avatar_url?: string
   banner_url?: string
   bio?: string
+  country?: string
+  city?: string
+  date_of_birth?: string
   role: string
   is_active: boolean
   created_at: string
   updated_at: string
+  settings?: {
+    notifications_enabled?: boolean
+    email_notifications?: boolean
+    privacy_level?: string
+    language?: string
+    timezone?: string
+  }
 }
 
 export interface CreateUserDto {
@@ -23,6 +33,9 @@ export interface CreateUserDto {
   banner_url?: string
   bio?: string
   supabase_user_id?: string
+  country?: string
+  city?: string
+  date_of_birth?: string
 }
 
 export interface UpdateUserDto {
@@ -32,7 +45,14 @@ export interface UpdateUserDto {
   avatar_url?: string
   banner_url?: string
   bio?: string
+  country?: string
+  city?: string
+  date_of_birth?: string
   is_active?: boolean
+  // settings updates may be sent with a separate endpoint, but include for convenience
+  settings?: {
+    timezone?: string
+  }
 }
 
 export interface UserSearchParams {
@@ -89,24 +109,33 @@ export class UserService {
     return apiClient.patch<User>(`/users/${id}`, userData)
   }
 
+  // Update user profile
+  static async updateUserProfile(id: string, updates: Partial<UpdateUserDto>): Promise<User> {
+    return this.updateUser(id, updates)
+  }
+
+  // Update user settings (timezone, etc.)
+  static async updateUserSettings(id: string, settings: { timezone?: string }): Promise<void> {
+    await apiClient.patch<void>(`/users/${id}/settings`, settings)
+  }
+
   // Delete user
   static async deleteUser(id: string): Promise<void> {
     return apiClient.delete<void>(`/users/${id}`)
   }
-
-  // Search users
+    // Search users
   static async searchUsers(query: string, limit = 20): Promise<User[]> {
     const response = await this.getUsers({ search: query, limit })
     return response.data
   }
 
-  // Create user profile after Supabase auth registration
+    // Create user profile after Supabase auth registration
   static async createUserProfile(supabaseUser: unknown): Promise<User> {
     // Type guard to ensure supabaseUser is an object
     if (!supabaseUser || typeof supabaseUser !== 'object') {
       throw new Error('Invalid user data provided')
     }
-    
+
     const user = supabaseUser as Record<string, unknown>
     const userMetadata = (user.user_metadata as Record<string, unknown>) || {}
     const email = user.email as string
@@ -123,8 +152,9 @@ export class UserService {
     return this.createUser(userData)
   }
 
-  // Update user profile
-  static async updateUserProfile(id: string, updates: Partial<UpdateUserDto>): Promise<User> {
-    return this.updateUser(id, updates)
-  }
+
 }
+
+
+    
+

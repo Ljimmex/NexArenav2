@@ -70,7 +70,27 @@ class ApiClient {
         throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`)
       }
 
-      return await response.json()
+      // Handle responses with no content gracefully (e.g., 204 No Content, 205 Reset Content)
+      if (response.status === 204 || response.status === 205) {
+        return undefined as unknown as T
+      }
+
+      // If response is not JSON, try to read as text; return undefined for empty body
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text().catch(() => '')
+        return (text ? (text as unknown as T) : (undefined as unknown as T))
+      }
+
+      // Attempt to parse JSON; if body is empty, return undefined instead of throwing
+      try {
+        return await response.json()
+      } catch (e) {
+        if (e instanceof SyntaxError) {
+          return undefined as unknown as T
+        }
+        throw e
+      }
     } catch (error) {
       console.error(`API request failed: ${endpoint}`, error)
       throw error

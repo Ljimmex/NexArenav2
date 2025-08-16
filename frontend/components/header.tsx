@@ -241,11 +241,11 @@ export function Header() {
                       asChild
                       className="rounded-md px-2 py-2 text-sm text-white/90 hover:bg-white/5 focus:bg-white/5"
                     >
-                      <Link href="/settings" className="flex items-center">
+                      <Link href="/profile/edit" className="flex items-center">
                         <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10">
                           <Settings className="h-3.5 w-3.5 text-white/90" strokeWidth={ICON_STROKE} />
                         </span>
-                        Ustawienia
+                        Edytuj profil
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-[#1a2530]" />
@@ -386,9 +386,9 @@ export function Header() {
                     className="w-full justify-start text-white hover:bg-white/10"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    <Link href="/settings">
+                    <Link href="/profile/edit">
                       <Settings className="h-4 w-4 mr-3" />
-                      Ustawienia
+                      Edytuj profil
                     </Link>
                   </Button>
                   

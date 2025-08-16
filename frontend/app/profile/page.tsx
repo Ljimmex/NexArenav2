@@ -6,7 +6,7 @@ import { ProfileStatsNav } from '@/components/profile-stats-nav'
 
 export default function ProfilePage() {
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-[#0a0f14] text-white flex flex-col">
       <Header />
       <div className="flex flex-1">
         <Sidebar />

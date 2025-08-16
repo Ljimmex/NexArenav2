@@ -285,13 +285,51 @@ export class UsersService {
     privacy_stats: string;
     privacy_matches: string;
   }>): Promise<void> {
+    // Ensure settings row exists for the user (idempotent)
+    const ensureRow = await this.supabaseService.client
+      .from('user_settings')
+      .upsert({ user_id: userId }, { onConflict: 'user_id' })
+
+    if (ensureRow.error) {
+      // If we cannot ensure the row exists, bail out with a meaningful error
+      throw new BadRequestException(`Failed to ensure user settings row: ${ensureRow.error.message}`)
+    }
+
+    // Try to update settings
     const { error } = await this.supabaseService.client
       .from('user_settings')
       .update(settings)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
 
     if (error) {
-      throw new BadRequestException(`Failed to update user settings: ${error.message}`);
+      // Handle case when 'timezone' column is missing in the schema cache or DB
+      const errorMsg = (error.message || '').toLowerCase()
+      const mentionsTimezoneColumn = errorMsg.includes("timezone") && errorMsg.includes("column")
+
+      if (mentionsTimezoneColumn && settings && 'timezone' in settings) {
+        // Retry without timezone to avoid failing the whole update
+        const { timezone, ...rest } = settings
+
+        // If after removing timezone there is nothing else to update, return success
+        if (!rest || Object.keys(rest).length === 0) {
+          return
+        }
+
+        const retry = await this.supabaseService.client
+          .from('user_settings')
+          .update(rest)
+          .eq('user_id', userId)
+
+        if (retry.error) {
+          throw new BadRequestException(`Failed to update user settings: ${retry.error.message}`)
+        }
+
+        // Silently succeed without throwing to avoid breaking UX if timezone column is temporarily unavailable.
+        // Note: To fully enable timezone updates, ensure the 'timezone' column exists in 'user_settings'.
+        return
+      }
+
+      throw new BadRequestException(`Failed to update user settings: ${error.message}`)
     }
   }
 }
