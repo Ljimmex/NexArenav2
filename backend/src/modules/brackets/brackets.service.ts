@@ -85,13 +85,12 @@ export class BracketsService {
         if (!teamsError && registeredTeams && registeredTeams.length > 0) {
           console.log(`Found ${registeredTeams.length} registered teams with seeds`);
           participants = registeredTeams.map((teamReg, index) => {
-            // Handle both single object and array cases for teams
             const team = Array.isArray(teamReg.teams) ? teamReg.teams[0] : teamReg.teams;
             return {
-              id: team.id,
-              name: team.name,
+              id: team?.id,
+              name: team?.name,
               type: ParticipantType.TEAM,
-              logo_url: team.logo_url,
+              logo_url: team?.logo_url,
               seed: teamReg.seed || (index + 1), // Use seed from DB or fallback to order
             };
           });
@@ -106,9 +105,9 @@ export class BracketsService {
           participants = [];
           for (let i = 1; i <= totalParticipants; i++) {
             participants.push({
-              id: `placeholder-${i}`,
-              name: `Team ${i}`,
-              type: ParticipantType.TBD,
+              id: `seed-${i}`,
+              name: `Seed #${i}`,
+              type: ParticipantType.PLACEHOLDER_SEED,
               seed: i,
             });
           }
@@ -123,9 +122,9 @@ export class BracketsService {
         participants = [];
         for (let i = 1; i <= totalParticipants; i++) {
           participants.push({
-            id: `placeholder-${i}`,
-            name: `Team ${i}`,
-            type: ParticipantType.TBD,
+            id: `seed-${i}`,
+            name: `Seed #${i}`,
+            type: ParticipantType.PLACEHOLDER_SEED,
             seed: i,
           });
         }
@@ -448,59 +447,26 @@ export class BracketsService {
       throw new BadRequestException('Invalid or missing Single Elimination bracket');
     }
 
-    // Check if this is a grouped bracket and verify match exists
-    if (bracket.groups && bracket.groups.length > 0) {
-      // For grouped brackets, use the groups-specific findMatch
-      const { SingleEliminationGroupsGenerator } = await import('./single-elimination-groups.generator');
-      const matchRef = SingleEliminationGroupsGenerator.findMatch(bracket as any, dto.match_id);
-      if (!matchRef) {
-        throw new NotFoundException('Match not found in bracket');
-      }
-      
-      // In updateSingleEliminationMatch grouped branch, create a temp bracket with group's rounds
-      const groupBracket = {
-        tournament_id: bracket.tournament_id,
-        type: bracket.type,
-        total_participants: bracket.total_participants,
-        total_rounds: matchRef.group.total_rounds,
-        bronze_match: matchRef.group.bronze_match,
-        rounds: matchRef.group.rounds,
-        metadata: bracket.metadata,
-      } as any;
-      const updatedGroupBracket = this.bracketMatchManager.updateMatch(groupBracket, dto);
-      // Replace the group's rounds with the updated ones
-      const groupIndex = bracket.groups.findIndex(g => g.group_id === matchRef.group.group_id);
-      if (groupIndex >= 0) {
-        bracket.groups[groupIndex].rounds = updatedGroupBracket.rounds;
-      }
-    } else {
-      // For regular brackets, update normally
-      const updatedBracket = this.bracketMatchManager.updateMatch(bracket, dto);
-      Object.assign(bracket, updatedBracket);
-    }
-
-    // Update metadata
-    if (bracket.metadata) {
-      bracket.metadata.updated_at = new Date().toISOString();
-    }
+    // Update the match using the match manager
+    const updatedBracket = this.bracketMatchManager.updateMatch(bracket, dto);
 
     // Persist the updated bracket
     const save = await this.supabaseService.client
       .from('tournaments')
-      .update({ bracket_data: bracket, updated_at: new Date().toISOString() })
+      .update({ bracket_data: updatedBracket, updated_at: new Date().toISOString() })
       .eq('id', dto.tournament_id);
 
     if (save.error) throw new BadRequestException(`Failed to update bracket: ${save.error.message}`);
 
     // Synchronize the updated match to matches table
     try {
-      await this.bracketSync.syncSingleMatchToDatabase(dto.tournament_id, dto.match_id, bracket);
+      await this.bracketSync.syncSingleMatchToDatabase(dto.tournament_id, dto.match_id, updatedBracket);
     } catch (error) {
       console.error('Error synchronizing match to database:', error);
       // Don't throw here to avoid breaking bracket update
     }
 
-    return bracket;
+    return updatedBracket;
   }
 
   /**
@@ -522,58 +488,26 @@ export class BracketsService {
       throw new BadRequestException('Invalid or missing Single Elimination bracket');
     }
 
-    // Check if this is a grouped bracket and verify match exists
-    if (bracket.groups && bracket.groups.length > 0) {
-      // For grouped brackets, use the groups-specific findMatch
-      const { SingleEliminationGroupsGenerator } = await import('./single-elimination-groups.generator');
-      const matchRef = SingleEliminationGroupsGenerator.findMatch(bracket as any, match_id);
-      if (!matchRef) {
-        throw new NotFoundException('Match not found in bracket');
-      }
-      
-      // In resetSingleEliminationMatch grouped branch, same pattern
-      const groupBracket2 = {
-        tournament_id: bracket.tournament_id,
-        type: bracket.type,
-        total_participants: bracket.total_participants,
-        total_rounds: matchRef.group.total_rounds,
-        bronze_match: matchRef.group.bronze_match,
-        rounds: matchRef.group.rounds,
-        metadata: bracket.metadata,
-      } as any;
-      const updatedGroupBracket2 = this.bracketMatchManager.resetMatch(groupBracket2, match_id);
-      const groupIndex2 = bracket.groups.findIndex(g => g.group_id === matchRef.group.group_id);
-      if (groupIndex2 >= 0) {
-        bracket.groups[groupIndex2].rounds = updatedGroupBracket2.rounds;
-      }
-    } else {
-      // For regular brackets, reset normally
-      const updatedBracket = this.bracketMatchManager.resetMatch(bracket, match_id);
-      Object.assign(bracket, updatedBracket);
-    }
-
-    // Update metadata
-    if (bracket.metadata) {
-      bracket.metadata.updated_at = new Date().toISOString();
-    }
+    // Reset the match using the match manager
+    const updatedBracket = this.bracketMatchManager.resetMatch(bracket, match_id);
 
     // Persist the updated bracket
     const save = await this.supabaseService.client
       .from('tournaments')
-      .update({ bracket_data: bracket, updated_at: new Date().toISOString() })
+      .update({ bracket_data: updatedBracket, updated_at: new Date().toISOString() })
       .eq('id', tournament_id);
 
     if (save.error) throw new BadRequestException(`Failed to reset match: ${save.error.message}`);
 
     // Synchronize the reset match to matches table
     try {
-      await this.bracketSync.syncSingleMatchToDatabase(tournament_id, match_id, bracket);
+      await this.bracketSync.syncSingleMatchToDatabase(tournament_id, match_id, updatedBracket);
     } catch (error) {
       console.error('Error synchronizing reset match to database:', error);
       // Don't throw here to avoid breaking bracket reset
     }
 
-    return bracket;
+    return updatedBracket;
   }
 
   /**

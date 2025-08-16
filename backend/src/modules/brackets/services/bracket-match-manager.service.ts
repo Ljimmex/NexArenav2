@@ -27,6 +27,30 @@ export class BracketMatchManagerService {
   }
 
   /**
+   * Finds a match across a bracket, including within groups when present
+   */
+  private findMatchAcrossBracket(
+    bracket: SingleEliminationBracketDto,
+    matchId: string,
+  ): { rounds: BracketRoundDto[]; matchRef: { roundIndex: number; matchIndex: number; match: BracketMatchDto } } | null {
+    // First, try in root rounds
+    let matchRef = this.findMatch(bracket.rounds, matchId);
+    if (matchRef) return { rounds: bracket.rounds, matchRef };
+
+    // If not found, search inside groups if they exist
+    if (bracket.groups && bracket.groups.length > 0) {
+      for (const group of bracket.groups) {
+        const ref = this.findMatch(group.rounds, matchId);
+        if (ref) {
+          return { rounds: group.rounds, matchRef: ref };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Finds the feeder match for a given match and slot
    */
   findFeederMatch(
@@ -49,14 +73,18 @@ export class BracketMatchManagerService {
     bracket: SingleEliminationBracketDto,
     dto: UpdateBracketMatchRequestDto,
   ): SingleEliminationBracketDto {
-    const matchRef = this.findMatch(bracket.rounds, dto.match_id);
-    if (!matchRef) throw new NotFoundException('Match not found in bracket');
+    const found = this.findMatchAcrossBracket(bracket, dto.match_id);
+    if (!found) throw new NotFoundException('Match not found in bracket');
+    const { rounds: roundsRef, matchRef } = found;
     const match = matchRef.match;
 
     // Safety: prevent overwriting finalized matches unless forced
     if (match.is_finalized && !dto.force_update) {
       throw new BadRequestException('Match is finalized and cannot be modified');
     }
+
+    // Keep track of previous winner to detect changes
+    const prevWinnerId = match.winner?.id;
 
     // Reset disqualification info
     match.disqualified_participant = undefined;
@@ -103,7 +131,7 @@ export class BracketMatchManagerService {
     else if (p2 && p2.id === dqId) dqSlot = 2;
 
     if (dqSlot) {
-      const feeder = this.findFeederMatch(bracket.rounds, match.id, dqSlot);
+      const feeder = this.findFeederMatch(roundsRef, match.id, dqSlot);
       if (feeder) {
         // Identify opponent from feeder match
         const opp = feeder.participant1 && feeder.participant1.id !== dqId ? feeder.participant1
@@ -125,14 +153,27 @@ export class BracketMatchManagerService {
           match.score2 = undefined;
 
           // Update feeder match outcome to reflect retroactive promotion
+          const prevFeederWinnerId = feeder.winner?.id;
           feeder.winner = opp;
           feeder.is_finalized = true;
           if (!feeder.status || feeder.status === MatchStatus.PENDING) feeder.status = MatchStatus.COMPLETED;
 
+          // Ensure feeder scores reflect the promoted winner
+          const oppIsP1 = feeder.participant1?.id === opp.id;
+          // Override scores if missing or if previous winner changed
+          if (
+            typeof feeder.score1 !== 'number' ||
+            typeof feeder.score2 !== 'number' ||
+            (prevFeederWinnerId && prevFeederWinnerId !== opp.id)
+          ) {
+            feeder.score1 = oppIsP1 ? 1 : 0;
+            feeder.score2 = oppIsP1 ? 0 : 1;
+          }
+
           // Propagate from feeder
-          this.replacePlaceholders(bracket.rounds, 'winner', feeder.id, opp);
+          this.replacePlaceholders(roundsRef, 'winner', feeder.id, opp);
           if (dqParticipant) {
-            this.replacePlaceholders(bracket.rounds, 'loser', feeder.id, dqParticipant);
+            this.replacePlaceholders(roundsRef, 'loser', feeder.id, dqParticipant);
           }
 
           winner = undefined;
@@ -202,10 +243,33 @@ export class BracketMatchManagerService {
 
     // Propagate winners and losers to placeholders across bracket
     if (winner) {
-      this.replacePlaceholders(bracket.rounds, 'winner', match.id, winner);
+      this.replacePlaceholders(roundsRef, 'winner', match.id, winner);
     }
     if (loser) {
-      this.replacePlaceholders(bracket.rounds, 'loser', match.id, loser);
+      this.replacePlaceholders(roundsRef, 'loser', match.id, loser);
+    }
+
+    // If the winner changed and there is a downstream match, normalize that next match
+    if (prevWinnerId && winner && prevWinnerId !== winner.id && match.next_match_id) {
+      const nextRef = this.findMatch(roundsRef, match.next_match_id);
+      if (nextRef) {
+        const nextMatch = nextRef.match;
+        // Ensure the new winner is set in the correct slot (already handled by replacePlaceholders, but enforce for safety)
+        if (match.next_match_position === 1) nextMatch.participant1 = winner;
+        else if (match.next_match_position === 2) nextMatch.participant2 = winner;
+
+        // If the next match was finalized or depended on the previous winner, reset it
+        if (nextMatch.is_finalized || nextMatch.winner?.id === prevWinnerId) {
+          nextMatch.winner = undefined;
+          nextMatch.score1 = undefined;
+          nextMatch.score2 = undefined;
+          nextMatch.status = MatchStatus.PENDING;
+          nextMatch.is_finalized = false;
+
+          // Also restore downstream placeholders that referenced the next match outcome
+          this.restorePlaceholders(roundsRef, nextMatch);
+        }
+      }
     }
 
     // Auto-finalize bracket if final match has winner
@@ -221,9 +285,10 @@ export class BracketMatchManagerService {
    * Resets a match and clears downstream placements
    */
   resetMatch(bracket: SingleEliminationBracketDto, matchId: string): SingleEliminationBracketDto {
-    const matchRef = this.findMatch(bracket.rounds, matchId);
-    if (!matchRef) throw new NotFoundException('Match not found in bracket');
+    const found = this.findMatchAcrossBracket(bracket, matchId);
+    if (!found) throw new NotFoundException('Match not found in bracket');
 
+    const { rounds: roundsRef, matchRef } = found;
     const match = matchRef.match;
 
     // Clear match state
@@ -235,7 +300,7 @@ export class BracketMatchManagerService {
     match.disqualified_participant = undefined;
 
     // Recreate placeholders for downstream references to this match
-    this.restorePlaceholders(bracket.rounds, match);
+    this.restorePlaceholders(roundsRef, match);
 
     // Bracket no longer final if previously marked
     if (bracket.metadata) bracket.metadata.is_finalized = false;

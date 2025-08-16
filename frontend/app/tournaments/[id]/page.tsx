@@ -16,57 +16,28 @@ import {
 import Link from 'next/link'
 import { Header } from '@/components/header'
 import { Sidebar } from '@/components/sidebar'
-import { TournamentHeader } from '@/components/tournament-header'
-import { TournamentNavigation } from '@/components/tournament-navigation'
+import { TournamentHeader } from '@/components/tournament/tournament-header'
+import { TournamentNavigation } from '@/components/tournament/tournament-navigation'
 import { Tournament, tournamentsAPI } from '@/lib/api/tournaments'
 import { Team, teamsAPI } from '@/lib/api/teams'
 import { bracketsAPI, GroupInfo } from '@/lib/api/brackets'
-import { BracketDisplay } from '@/components/bracket-display'
-import { GroupSelector } from '@/components/group-selector'
+import { BracketDisplay } from '@/components/tournament/bracket-display'
+import { GroupSelector } from '@/components/tournament/group-selector'
 import { useAuth } from '@/lib/auth/auth-context'
 import { useAdmin } from '@/lib/hooks/useAdmin'
 import toast from 'react-hot-toast'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button as UIButton } from '@/components/ui/button'
-
-const gameTypeLabels = {
-  CS2: 'Counter-Strike 2',
-  VALORANT: 'Valorant',
-  LOL: 'League of Legends',
-  DOTA2: 'Dota 2',
-  ROCKET_LEAGUE: 'Rocket League',
-  OVERWATCH: 'Overwatch 2',
-}
-
-const tournamentTypeLabels = {
-  SINGLE_ELIMINATION: 'Single Elimination',
-  DOUBLE_ELIMINATION: 'Double Elimination',
-  ROUND_ROBIN: 'Round Robin',
-  SWISS: 'Swiss System',
-}
-
-const statusLabels = {
-  DRAFT: 'Szkic',
-  REGISTRATION: 'Rejestracja',
-  READY: 'Gotowy',
-  RUNNING: 'W trakcie',
-  COMPLETED: 'Zakończony',
-  CANCELLED: 'Anulowany',
-  POSTPONED: 'Przełożony',
-}
-
-const statusColors = {
-  DRAFT: 'bg-gray-500',
-  REGISTRATION: 'bg-green-500',
-  READY: 'bg-yellow-500',
-  RUNNING: 'bg-blue-500',
-  COMPLETED: 'bg-purple-500',
-  CANCELLED: 'bg-red-500',
-  POSTPONED: 'bg-orange-500',
-}
+import { EditMatchModal, EditMatchFormState } from '@/components/tournament/edit-match-modal'
+import { ScheduleTimeline } from '@/components/tournament/schedule-timeline'
+import { DescriptionCard } from "@/components/cards/description-card"
+import { PrizesCard } from "@/components/cards/prizes-card"
+import { TeamsCard } from "@/components/cards/teams-card"
+import { AdminsCard } from "@/components/cards/admins-card"
+import { FormatsCard } from "@/components/cards/formats-card"
+import { GameSettingsCard } from "@/components/cards/game-settings-card"
+import { HostedByCard } from "@/components/cards/hosted-by-card"
+import { RulesCard } from "@/components/cards/rules-card"
+import { gameTypeLabels, statusLabels, statusColors, tournamentTypeLabels, formatDate, formatPrize } from "@/lib/utils/tournament"
 
 export default function TournamentDetailPage() {
   const params = useParams()
@@ -99,7 +70,7 @@ export default function TournamentDetailPage() {
     score1: '' as string,
     score2: '' as string,
     best_of: '' as string,
-    status: 'PENDING' as 'PENDING' | 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'WALKOVER' | 'DISQUALIFIED',
+    status: 'PENDING' as EditMatchFormState['status'],
     scheduled_at: '' as string,
     walkoverFor: '' as string,
     dqFor: '' as string,
@@ -148,6 +119,12 @@ export default function TournamentDetailPage() {
       if (formState.dqFor) {
         payload.status = 'DISQUALIFIED'
         payload.disqualified_participant_id = formState.dqFor === 'p1' ? editingMatch.participant1?.id : editingMatch.participant2?.id
+      }
+
+      // Allow editing finalized and canceled/walkover/completed matches
+      const finalizedStatuses = ['COMPLETED', 'WALKOVER', 'CANCELLED', 'DISQUALIFIED'] as const
+      if (editingMatch?.is_finalized || finalizedStatuses.includes(editingMatch?.status) || finalizedStatuses.includes(formState.status as any)) {
+        payload.force_update = true
       }
 
       await bracketsAPI.updateMatch(payload)
@@ -320,22 +297,6 @@ export default function TournamentDetailPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [tournament?.id, tournament?.tournament_type, selectedGroup])
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'TBD'
-    return new Date(dateString).toLocaleDateString('pl-PL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  const formatPrize = (amount: number) => {
-    if (amount === 0) return 'Darmowy'
-    return `${amount.toLocaleString('pl-PL')} PLN`
-  }
 
   const handleDeleteTournament = async () => {
     if (!tournament || !canDeleteTournament) return
@@ -569,84 +530,81 @@ export default function TournamentDetailPage() {
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                   
                 <TabsContent value="overview" className="mt-8">
+                  {/* Schedule Timeline */}
+                  <div className="mb-8">
+                    <ScheduleTimeline
+                      registrationStart={tournament.registration_start}
+                      registrationEnd={tournament.registration_end}
+                      tournamentStart={tournament.tournament_start}
+                      tournamentEnd={tournament.tournament_end}
+                      status={tournament.status}
+                    />
+                  </div>
+                  
+                  {/* Main Grid Layout */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Registration Status */}
-                    <div className="lg:col-span-1">
-                      <div className="bg-gray-800/50 rounded-lg p-6 mb-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-white font-semibold">Registration</h3>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="text-sm text-green-400">Check-in started</span>
-                          </div>
-                        </div>
-                      </div>
+                    {/* Left Column - Description and Rules */}
+                    <div className="lg:col-span-2 space-y-8">
+                      <DescriptionCard>
+                        <p>About the map veto/side pick process here.</p>
+                      </DescriptionCard>
+                      
+                      <RulesCard>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-gray-300">
+                          <li>A game that has been played past the first rounds is deemed valid. If your game host starts with wrong settings you have to report it to admins before the beginning of the match.</li>
+                          <li>Verify your results after the game in your lobby please, even if you lose.</li>
+                          <li>You must follow the Ban/Pick Order!</li>
+                          <li>Default settings are Cheats: OFF</li>
+                          <li>If the server location can not be agreed upon then Frankfurt 1/2 should be played.</li>
+                        </ul>
+                        <p className="mt-3">You can read our Anti-Cheat and General Rules in greater detail here.</p>
+                        <p className="mt-3">If you encounter any issues, please contact the Challengermode Support Chat</p>
+                      </RulesCard>
                     </div>
-
-                    {/* Description */}
-                    <div className="lg:col-span-2">
-                      <div className="bg-gray-800/50 rounded-lg p-6 mb-6">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Info className="h-5 w-5 text-white" />
-                          <h3 className="text-white font-semibold">Description</h3>
-                        </div>
-                        <div className="text-gray-300 space-y-4">
-                          <p>About the map veto/side pick process here.</p>
-                          <p><strong>Rules:</strong></p>
-                          <ul className="list-disc list-inside space-y-1 text-sm">
-                            <li>A game that has been played past the first rounds is deemed valid. If your game host starts with wrong settings you have to report it to admins before the game starts.</li>
-                            <li>Verify your results after the game in your lobby please, even if you lose.</li>
-                            <li>You must follow the Ban Pick Order!</li>
-                            <li>Default settings are Chinks OFF</li>
-                            <li>If the server location can not be agreed upon then Frankfurt T2 should be used.</li>
-                          </ul>
-                          <p>You can read our Anti-Cheat and General Rules in greater detail here.</p>
-                          <p><strong>Rules:</strong></p>
-                          <p>If you encounter any issues please contact the Challengemode Support Chat</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Prizes Section */}
-                  <div className="bg-gray-800/50 rounded-lg p-6 mb-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Trophy className="h-5 w-5 text-white" />
-                      <h3 className="text-white font-semibold">Prizes</h3>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-white mb-1">$1000</div>
-                        <div className="text-sm text-gray-400">1st place</div>
-                        <div className="text-xs text-gray-500">AMOUNT</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-white mb-1">$500</div>
-                        <div className="text-sm text-gray-400">2nd place</div>
-                        <div className="text-xs text-gray-500">AMOUNT</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-white mb-1">$300</div>
-                        <div className="text-sm text-gray-400">3rd place</div>
-                        <div className="text-xs text-gray-500">AMOUNT</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-white mb-1">$200</div>
-                        <div className="text-sm text-gray-400">4th place</div>
-                        <div className="text-xs text-gray-500">AMOUNT</div>
-                      </div>
+                    
+                    {/* Right Column - Side Cards */}
+                    <div className="space-y-8">
+                      <PrizesCard
+                        prizes={[
+                          { place: "1st place", amount: "$1000" },
+                          { place: "2nd place", amount: "$500" },
+                          { place: "3rd place", amount: "$300" },
+                          { place: "4th place", amount: "$200" },
+                        ]}
+                      />
+                      
+                      <TeamsCard
+                        registered={registeredTeams}
+                        maxSlots={tournament.max_teams}
+                      />
+                      
+                      <AdminsCard
+                        moderatorIds={tournament.moderators || []}
+                      />
                     </div>
                   </div>
-
-                  {/* Rules Section */}
-                  <div className="bg-gray-800/50 rounded-lg p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Settings className="h-5 w-5 text-white" />
-                      <h3 className="text-white font-semibold">Rules</h3>
-                    </div>
-                    <div className="text-gray-300">
-                      {tournament.rules || 'Tournament rules will be posted here.'}
-                    </div>
+                  
+                  {/* Bottom Row - Wide Cards */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+                    <FormatsCard tournament={tournament} />
+                    
+                    <GameSettingsCard
+                      imageUrl="/images/demo-map.jpg"
+                      settings={[
+                        { label: "Selected de_mirage", value: "Rounds: Defuse" },
+                        { label: "Max rounds", value: "VAC" },
+                      ]}
+                    />
+                  </div>
+                  
+                  {/* Full Width Bottom Card */}
+                  <div className="mt-8">
+                    <HostedByCard
+                      organizer={tournament.organizer}
+                      description="Xtreme League je polska liga CS:GO zaprojektowana dla organizowanych turniejów esport. Narzędzie gry stworzone w celu wygodnego organizowania i rozgrywania gier grupowych pod kontrolą organizatorów oraz moderatorów pod okiem społeczności."
+                      membersCount={131}
+                      sinceText="over 2 years ago"
+                    />
                   </div>
                 </TabsContent>
                     
@@ -806,119 +764,16 @@ export default function TournamentDetailPage() {
       />
 
       {/* Edit Match Modal */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edytuj mecz</DialogTitle>
-          </DialogHeader>
-
-          {editingMatch && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-gray-300">Wynik - {editingMatch.participant1?.name || 'TBD'}</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={formState.score1}
-                    onChange={(e) => setFormState(s => ({ ...s, score1: e.target.value }))}
-                    className="bg-gray-800 border-gray-700 text-white"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-300">Wynik - {editingMatch.participant2?.name || 'TBD'}</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={formState.score2}
-                    onChange={(e) => setFormState(s => ({ ...s, score2: e.target.value }))}
-                    className="bg-gray-800 border-gray-700 text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-gray-300">BOx (best of)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    step={2}
-                    placeholder="1,3,5..."
-                    value={formState.best_of}
-                    onChange={(e) => setFormState(s => ({ ...s, best_of: e.target.value }))}
-                    className="bg-gray-800 border-gray-700 text-white"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Uwaga: zmiana BOx może wymagać aktualizacji w harmonogramie meczów.</p>
-                </div>
-                <div>
-                  <Label className="text-gray-300">Status</Label>
-                  <select
-                    value={formState.status}
-                    onChange={(e) => setFormState(s => ({ ...s, status: e.target.value as any }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 text-white"
-                  >
-                    <option value="PENDING">Oczekuje</option>
-                    <option value="SCHEDULED">Zaplanowany</option>
-                    <option value="LIVE">W trakcie</option>
-                    <option value="COMPLETED">Zakończony</option>
-                    <option value="CANCELLED">Anulowany</option>
-                    <option value="WALKOVER">Walkover</option>
-                    <option value="DISQUALIFIED">Dyskwalifikacja</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-gray-300">Czas (zaplanowany)</Label>
-                <input
-                  type="datetime-local"
-                  value={formState.scheduled_at}
-                  onChange={(e) => setFormState(s => ({ ...s, scheduled_at: e.target.value }))}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 text-white"
-                />
-                <p className="text-xs text-gray-400 mt-1">Format: lokalny czas przeglądarki.</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-gray-300">Walkover dla</Label>
-                  <select
-                    value={formState.walkoverFor}
-                    onChange={(e) => setFormState(s => ({ ...s, walkoverFor: e.target.value, dqFor: '' }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 text-white"
-                  >
-                    <option value="">— brak —</option>
-                    <option value="p1">{editingMatch.participant1?.name || 'TBD'}</option>
-                    <option value="p2">{editingMatch.participant2?.name || 'TBD'}</option>
-                  </select>
-                </div>
-                <div>
-                  <Label className="text-gray-300">Dyskwalifikacja</Label>
-                  <select
-                    value={formState.dqFor}
-                    onChange={(e) => setFormState(s => ({ ...s, dqFor: e.target.value, walkoverFor: '' }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 text-white"
-                  >
-                    <option value="">— brak —</option>
-                    <option value="p1">{editingMatch.participant1?.name || 'TBD'}</option>
-                    <option value="p2">{editingMatch.participant2?.name || 'TBD'}</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="mt-6">
-            <UIButton variant="outline" onClick={() => setEditOpen(false)} className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white">
-              Anuluj
-            </UIButton>
-            <UIButton onClick={handleSaveEdit} disabled={saving} className="bg-cyan-600 hover:bg-cyan-700">
-              {saving ? 'Zapisywanie...' : 'Zapisz'}
-            </UIButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditMatchModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        editingMatch={editingMatch}
+        formState={formState}
+        setFormState={setFormState}
+        saving={saving}
+        onCancel={() => setEditOpen(false)}
+        onSave={handleSaveEdit}
+      />
     </div>
   )
 }

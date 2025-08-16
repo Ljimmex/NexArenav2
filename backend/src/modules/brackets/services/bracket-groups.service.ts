@@ -39,10 +39,12 @@ export class BracketGroupsService {
     // If we have fewer participants than expected, pad with placeholders
     const allParticipants = [...participants];
     while (allParticipants.length < totalExpectedParticipants) {
+      const nextIndex = allParticipants.length + 1;
       allParticipants.push({
-        id: `placeholder-${allParticipants.length + 1}`,
-        name: `TBD ${allParticipants.length + 1}`,
-        type: ParticipantType.TBD,
+        id: `seed-${nextIndex}`,
+        name: `Seed #${nextIndex}`,
+        type: ParticipantType.PLACEHOLDER_SEED,
+        seed: nextIndex,
       });
     }
 

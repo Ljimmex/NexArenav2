@@ -28,13 +28,15 @@ export class SingleEliminationGeneratorService {
     const nextPowerOfTwo = Math.pow(2, Math.ceil(Math.log2(totalParticipants)));
     const byesNeeded = nextPowerOfTwo - totalParticipants;
 
-    // Create bye participants
+    // Create placeholder seed participants to fill to next power of two
     const byes: ParticipantDto[] = [];
     for (let i = 0; i < byesNeeded; i++) {
+      const nextIndex = totalParticipants + i + 1;
       byes.push({
-        id: `bye-${i + 1}`,
-        name: 'BYE',
-        type: ParticipantType.TBD,
+        id: `seed-${nextIndex}`,
+        name: `Seed #${nextIndex}`,
+        type: ParticipantType.PLACEHOLDER_SEED,
+        seed: nextIndex,
       });
     }
 

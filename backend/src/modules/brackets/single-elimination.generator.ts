@@ -100,7 +100,7 @@ export class SingleEliminationGenerator {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         is_finalized: false,
-        advancement_rules: 'Winners advance, byes auto-advance; bronze match between semifinal losers if enabled.',
+        advancement_rules: 'Winners advance; bronze match between semifinal losers if enabled.',
         placements: [],
       },
     };
@@ -115,9 +115,10 @@ export class SingleEliminationGenerator {
     }
     // Ensure we have at most max entries
     const limited = participants.slice(0, max);
-    // Fill remaining with seeds placeholders
+    // Fill remaining with seed placeholders
     while (limited.length < max) {
-      limited.push(this.tbd());
+      const nextSeed = limited.length + 1;
+      limited.push(this.placeholderSeed(nextSeed));
     }
     return limited;
   }
@@ -125,7 +126,8 @@ export class SingleEliminationGenerator {
   private fillByes(list: ParticipantDto[], size: number): ParticipantDto[] {
     const filled = list.slice();
     while (filled.length < size) {
-      filled.push(this.tbd('BYE'));
+      const nextSeed = filled.length + 1;
+      filled.push(this.placeholderSeed(nextSeed));
     }
     return filled;
   }
